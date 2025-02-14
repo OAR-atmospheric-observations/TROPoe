@@ -3560,7 +3560,7 @@ def read_external_profile_data(date, ht, secs, tres, avg_instant,
             external['nTprof'] = 0
         else:
             if verbose >= 2:
-                print('    Reading ' + str(len(files)) + ' NWP output temp files')
+                print('    Reading ' + str(len(files)) + ' gridded temp files')
             for i in range(len(files)):
                 fid = Dataset(files[i], 'r')
                 fid.set_auto_mask(False)
@@ -3923,6 +3923,9 @@ def read_external_timeseries(date, secs, vip, dostop, verbose):
         if verbose >= 1:
             print(estring)
         return external
+    
+    if verbose >= 1:
+            print('  Reading in external surface data')
 
     # Read the external surface met data all at once.  Then we will fill out the 
     # vectors that need data, as specified by the VIP file
@@ -3931,208 +3934,234 @@ def read_external_timeseries(date, secs, vip, dostop, verbose):
             str(date) ,  (datetime.strptime(str(date), '%Y%m%d') + timedelta(days=1)).strftime('%Y%m%d') ]
 
     files = []
-    for i in range(len(dates)):
-        tempfiles, status = (findfile(vip['ext_sfc_path'],'*'+vip['ext_sfc_rootname']+'*' + dates[i] + '*.(cdf|nc)'))
-        if status == 1:
-            return external
-        files = files + tempfiles
-    if len(files) == 0:
-        if verbose >= 1:
-            print('    No external met found in the input directory for this date')
-        return external
+    if (vip['ext_sfc_pres_type'] == 0) & (vip['ext_sfc_temp_type'] == 0) & (vip['ext_sfc_wv_type'] == 0):
+        pass  # No need to try and read in files 
+    
     else:
-        for i in range(len(files)):
-            fid = Dataset(files[i], 'r')
-            fid.set_auto_mask(False)
+        for i in range(len(dates)):
+            tempfiles, status = (findfile(vip['ext_sfc_path'],'*'+vip['ext_sfc_rootname']+'*' + dates[i] + '*.(cdf|nc)'))
+            if status == 1:
+                return external
+            files = files + tempfiles
 
-            # Read in the time field(s)
-            if vip['ext_sfc_time_format'] == 0:
-                bt = fid.variables['base_time'][:].astype('float')
-            elif vip['ext_sfc_time_format'] == 1:
-                bt = fid.variables['base_time'][:].astype('float')
-                bt /= 1000.     # Convert milliseconds to seconds (epoch time)
-            else:
-                bt = 0
-            if len(np.where(np.array(list(fid.variables.keys())) == 'time_offset')[0]) > 0:
-                to = fid.variables['time_offset'][:].astype('float')
-            elif len(np.where(np.array(list(fid.variables.keys())) == 'time')[0]) > 0:
-                to = fid.variables['time'][:].astype('float')
+        # Print out a warning if no files are found, but don't need to fail since things are handled later
+        if len(files) == 0:
+            if verbose >= 1:
+                print('    No external met found in the input directory for this date')
+
+    # if len(files) == 0, this is not run   
+    for i in range(len(files)):
+        fid = Dataset(files[i], 'r')
+        fid.set_auto_mask(False)
+
+        # Read in the time field(s)
+        if vip['ext_sfc_time_format'] == 0:
+            bt = fid.variables['base_time'][:].astype('float')
+        elif vip['ext_sfc_time_format'] == 1:
+            bt = fid.variables['base_time'][:].astype('float')
+            bt /= 1000.     # Convert milliseconds to seconds (epoch time)
+        else:
+            bt = 0
+        if len(np.where(np.array(list(fid.variables.keys())) == 'time_offset')[0]) > 0:
+            to = fid.variables['time_offset'][:].astype('float')
+        elif len(np.where(np.array(list(fid.variables.keys())) == 'time')[0]) > 0:
+            to = fid.variables['time'][:].astype('float')
+        else:
+            fid.close()
+            print('    Problem reading the external surface met time data -- returning missing data')
+            return external
+
+        # Now read in the pressure field, as specified by the VIP file
+        if len(np.where(np.array(list(fid.variables.keys())) == vip['ext_sfc_pres_fieldname'])[0]) > 0:
+            p = fid.variables[vip['ext_sfc_pres_fieldname']][:]
+            if vip['ext_sfc_pres_units'] == 1:
+                p *= 10.                        # Convert kPa to hPa
+            elif vip['ext_sfc_pres_units'] == 2:
+                p *=  1.                        # Do nothing (units are correct)
+            elif vip['ext_sfc_pres_units'] == 3:
+                p /= 100.                       # Convert Pa to hPa
             else:
                 fid.close()
-                print('    Problem reading the external surface met time data -- returning missing data')
-                return external
+                print(f"    Problem converting pressure units in the external met data -- ",
+                                f"undefined option {vip['ext_sfc_pres_units']:d} but needs to be one of (1,2,3)")
+                sys.exit()
+        else:
+            print('    Problem reading the external met pressure data -- the field ',
+                            vip['ext_sfc_pres_fieldname'],' does not exist')
+            p = np.ones(len(to))*(-999.)
 
-            # Now read in the pressure field, as specified by the VIP file
-            if len(np.where(np.array(list(fid.variables.keys())) == vip['ext_sfc_pres_fieldname'])[0]) > 0:
-                p = fid.variables[vip['ext_sfc_pres_fieldname']][:]
-                if vip['ext_sfc_pres_units'] == 1:
-                    p *= 10.                        # Convert kPa to hPa
-                elif vip['ext_sfc_pres_units'] == 2:
-                    p *=  1.                        # Do nothing (units are correct)
-                elif vip['ext_sfc_pres_units'] == 3:
-                    p /= 100.                       # Convert Pa to hPa
-                else:
-                    fid.close()
-                    print(f"    Problem converting pressure units in the external met data -- ",
-                                 f"undefined option {vip['ext_sfc_pres_units']:d} but needs to be one of (1,2,3)")
-                    sys.exit()
+        # Now read in the temperature field, as specified by the VIP file
+        if len(np.where(np.array(list(fid.variables.keys())) == vip['ext_sfc_temp_fieldname'])[0]) > 0:
+            t = fid.variables[vip['ext_sfc_temp_fieldname']][:]
+            if vip['ext_sfc_temp_units'] == 1:
+                t +=  0.                        # Do nothing (units are correct in degC)
+            elif vip['ext_sfc_temp_units'] == 2:
+                t -=  273.15                    # Convert degK to degC
             else:
-                print('    Problem reading the external met pressure data -- the field ',
-                              vip['ext_sfc_pres_fieldname'],' does not exist')
-                p = np.ones(len(to))*(-999.)
+                fid.close()
+                print(f"    Problem converting temperature units in the external met data -- ",
+                                f"undefined option {vip['ext_sfc_temp_units']:d} but needs to be one of (1,2)")
+                sys.exit()
+        else:
+            print('    Problem reading the external met temperature data -- the field ',
+                            vip['ext_sfc_temp_fieldname'],' does not exist')
+            t = np.ones(len(to))*(-999.)
 
-            # Now read in the temperature field, as specified by the VIP file
-            if len(np.where(np.array(list(fid.variables.keys())) == vip['ext_sfc_temp_fieldname'])[0]) > 0:
-                t = fid.variables[vip['ext_sfc_temp_fieldname']][:]
-                if vip['ext_sfc_temp_units'] == 1:
-                    t +=  0.                        # Do nothing (units are correct in degC)
-                elif vip['ext_sfc_temp_units'] == 2:
-                    t -=  273.15                    # Convert degK to degC
-                else:
-                    fid.close()
-                    print(f"    Problem converting temperature units in the external met data -- ",
-                                 f"undefined option {vip['ext_sfc_temp_units']:d} but needs to be one of (1,2)")
-                    sys.exit()
+        # Now read in the water vapor (relative humidity) field, as specified by the VIP file
+        if len(np.where(np.array(list(fid.variables.keys())) == vip['ext_sfc_wv_fieldname'])[0]) > 0:
+            u = fid.variables[vip['ext_sfc_wv_fieldname']][:]
+            if vip['ext_sfc_wv_units'] == 1:
+                u +=  0.                        # Do nothing (units are correct in %rh)
+            elif vip['ext_sfc_wv_units'] == 2:
+                u *=  100.                      # Convert fraction_rh to %rh
             else:
-                print('    Problem reading the external met temperature data -- the field ',
-                              vip['ext_sfc_temp_fieldname'],' does not exist')
-                t = np.ones(len(to))*(-999.)
+                fid.close()
+                print(f"    Problem converting water vapor (RH) units in the external met data -- ",
+                                f"undefined option {vip['ext_sfc_wv_units']:d} but needs to be one of (1,2)")
+                sys.exit()
+        else:
+            print('    Problem reading the external met water vapor (RH) data -- the field ',
+                            vip['ext_sfc_wv_fieldname'],' does not exist')
+            u = np.ones(len(to))*(-999.)
 
-            # Now read in the water vapor (relative humidity) field, as specified by the VIP file
-            if len(np.where(np.array(list(fid.variables.keys())) == vip['ext_sfc_wv_fieldname'])[0]) > 0:
-                u = fid.variables[vip['ext_sfc_wv_fieldname']][:]
-                if vip['ext_sfc_wv_units'] == 1:
-                    u +=  0.                        # Do nothing (units are correct in %rh)
-                elif vip['ext_sfc_wv_units'] == 2:
-                    u *=  100.                      # Convert fraction_rh to %rh
-                else:
-                    fid.close()
-                    print(f"    Problem converting water vapor (RH) units in the external met data -- ",
-                                 f"undefined option {vip['ext_sfc_wv_units']:d} but needs to be one of (1,2)")
-                    sys.exit()
-            else:
-                print('    Problem reading the external met water vapor (RH) data -- the field ',
-                              vip['ext_sfc_wv_fieldname'],' does not exist')
-                u = np.ones(len(to))*(-999.)
+        # Now close the file being read
+        fid.close()
 
-            # Now close the file being read
-            fid.close()
-            if verbose >= 2: 
-                print('    Here are the first 10 surface met data that was just read in:')
-                print('           sfcP  sfcT   sfcRH')
-                for j in range(1,10):
-                    print(f"        {p[j]:.3f}, {t[j]:.2f}, {u[j]:.2f}")
+        if verbose >= 2: 
+            print('    Here are the first 10 surface met data that was just read in:')
+            print('           sfcP  sfcT   sfcRH')
+            for j in range(1,10):
+                print(f"        {p[j]:.3f}, {t[j]:.2f}, {u[j]:.2f}")
 
-                # Do some checks to see if the units are anywhere close
-            foo = np.where((p < 300) | (p > 1050))[0]   # these are generous thresholds for pres in the trop [mb]
-            if len(foo) == len(p):
-                print("    Possible Units Error: all external surface pressure values are outside (300,1050) mb",
-                                "-- check units in VIP file")
-                sys.exit(1)
-            foo = np.where((t < -100) | (t > 200))[0]   # these are generous thresholds for temp in the trop [degC]
-            if len(foo) == len(t):
-                print("    Possible Units Error: all external surface temperature values are outside (-100,200) degC",
-                                "-- check units in VIP file")
-                sys.exit(1)
-            foo = np.where((u < 1) | (u > 105))[0]   # these are generous thresholds for RH in the trop [%]
-            if len(foo) == len(u):
-                print("    Possible Units Error: all external surface RH values are outside (1,105) %RH",
-                                "-- check units in VIP file")
-                sys.exit(1)
+        # Check if any variable is completely missing
+        is_missing = lambda x: set(x) == set(np.array([-999.]))
+        if is_missing(p) | is_missing(t) | is_missing(u):
+            print("    Error: If using any surface data, then ext_sfc_pres_fieldname, ext_sfc_temp_fieldname,  \n" +
+                  "      and ext_sfc_wv_fieldname must point to real variables with non-missing data within \n" + 
+                  "      the file (even if they are not being used in the retrieval)")
+            return external
+        
+        # Do some checks to see if the units are anywhere close
+        foo = np.where((p < 300) | (p > 1050))[0]   # these are generous thresholds for pres in the trop [mb]
+        if len(foo) == len(p):
+            print("    Possible Units Error: all external surface pressure values are outside (300,1050) mb",
+                            "-- check units in VIP file")
+            sys.exit(1)
+        foo = np.where((t < -100) | (t > 200))[0]   # these are generous thresholds for temp in the trop [degC]
+        if len(foo) == len(t):
+            print("    Possible Units Error: all external surface temperature values are outside (-100,200) degC",
+                            "-- check units in VIP file")
+            sys.exit(1)
+        foo = np.where((u < 1) | (u > 105))[0]   # these are generous thresholds for RH in the trop [%]
+        if len(foo) == len(u):
+            print("    Possible Units Error: all external surface RH values are outside (1,105) %RH",
+                            "-- check units in VIP file")
+            sys.exit(1)
 
-                # Some simple QC for pressure (find any bad points)
-            foo = np.where((p > 0) & (p < 1050))[0]
-            if len(foo) < 1:
-                continue
-            to = to[foo]
-            p  = p[foo]
-            t  = t[foo]
-            u  = u[foo]
+            # Some simple QC for pressure (find any bad points)
+        foo = np.where((p > 0) & (p < 1050))[0]
+        if len(foo) < 1:
+            print("    External Pressure QC: all values fall outside (0, 1050)",
+                                f"-- Skipping {files[i]}")
+            continue
+        to = to[foo]
+        p  = p[foo]
+        t  = t[foo]
+        u  = u[foo]
 
-                # Append the pressure data to the growning structure
-            if external['nPsfc'] <= 0:
-                psecs = bt+to
-                press = np.copy(p)
-            else:
-                psecs = np.append(psecs,bt+to)
-                press = np.append(press, p)
-            external['nPsfc'] = len(psecs)
+            # Append the pressure data to the growning structure
+        if external['nPsfc'] <= 0:
+            psecs = bt+to
+            press = np.copy(p)
+        else:
+            psecs = np.append(psecs,bt+to)
+            press = np.append(press, p)
+        external['nPsfc'] = len(psecs)
 
-                # Some simple QC for temperature (find any bad points; this adds to previous QC on pres)
-            foo = np.where((t < 70) & (-100 < t))[0]
-            if len(foo) < 1:
-                continue
-            to = to[foo]
-            p  = p[foo]
-            t  = t[foo]
-            u  = u[foo]
+            # Some simple QC for temperature (find any bad points; this adds to previous QC on pres)
+        foo = np.where((t < 70) & (-100 < t))[0]
+        if len(foo) < 1:
+            print("    External Temp QC: all values fall outside (-100, 70)",
+                                f"-- Skipping {files[i]}")
+            continue
+        to = to[foo]
+        p  = p[foo]
+        t  = t[foo]
+        u  = u[foo]
 
-                # Append the temperature data to the growing structure
-            sigma_t = vip['ext_sfc_temp_random_error']
-            if external['nTsfc'] <= 0:
-                tsecs = bt+to
-                temp  = np.copy(t)
-                stemp = np.ones(len(t))*sigma_t
-            else:
-                tsecs = np.append(tsecs,bt+to)
-                temp  = np.append(temp,t)
-                stemp = np.append(stemp,np.ones(len(t))*sigma_t)
-            external['nTsfc'] = len(tsecs)
+            # Append the temperature data to the growing structure
+        sigma_t = vip['ext_sfc_temp_random_error']
+        if external['nTsfc'] <= 0:
+            tsecs = bt+to
+            temp  = np.copy(t)
+            stemp = np.ones(len(t))*sigma_t
+        else:
+            tsecs = np.append(tsecs,bt+to)
+            temp  = np.append(temp,t)
+            stemp = np.append(stemp,np.ones(len(t))*sigma_t)
+        external['nTsfc'] = len(tsecs)
 
-                # Some simple QC for water vapor (find any bad points; this adds to previous QC on pres and temp)
-            foo = np.where((u >= 0) & (u < 103))[0]
-            if len(foo) < 1:
-                continue
-            to = to[foo]
-            p  = p[foo]
-            t  = t[foo]
-            u  = u[foo]
+            # Some simple QC for water vapor (find any bad points; this adds to previous QC on pres and temp)
+        foo = np.where((u >= 0) & (u < 103))[0]
+        if len(foo) < 1:
+            print("    External RH QC: all values fall outside (0, 103)",
+                                f"-- Skipping {files[i]}")
+            continue
+        to = to[foo]
+        p  = p[foo]
+        t  = t[foo]
+        u  = u[foo]
 
-                # Convert surface RH to surface WVMR, and compute its random uncertainty
-            sigma_u = vip['ext_sfc_rh_random_error']       # %RH
-            w0 = Calcs_Conversions.rh2w(t, u/100., p)
-            w1 = Calcs_Conversions.rh2w(t+sigma_t, u/100., p)
-            w2 = Calcs_Conversions.rh2w(t-sigma_t, u/100., p)
-            u_plus  = (u+sigma_u)/100.
-            u_minus = (u-sigma_u)/100.
-            u_plus[u_plus > 1] = 1
-            u_minus[u_minus < 0] = 0
-            w3 = Calcs_Conversions.rh2w(t, u_plus, p)
-            w4 = Calcs_Conversions.rh2w(t, u_minus, p)
-                # Sum of squared errors, but take two-side average for T and RH uncerts
-            sigma_w = np.sqrt( ((w1-w0)**2 + (w2-w0)**2)/2. + ((w3-w0)**2 + (w4-w0)**2)/2. )
+            # Convert surface RH to surface WVMR, and compute its random uncertainty
+        sigma_u = vip['ext_sfc_rh_random_error']       # %RH
+        w0 = Calcs_Conversions.rh2w(t, u/100., p)
+        w1 = Calcs_Conversions.rh2w(t+sigma_t, u/100., p)
+        w2 = Calcs_Conversions.rh2w(t-sigma_t, u/100., p)
+        u_plus  = (u+sigma_u)/100.
+        u_minus = (u-sigma_u)/100.
+        u_plus[u_plus > 1] = 1
+        u_minus[u_minus < 0] = 0
+        w3 = Calcs_Conversions.rh2w(t, u_plus, p)
+        w4 = Calcs_Conversions.rh2w(t, u_minus, p)
+            # Sum of squared errors, but take two-side average for T and RH uncerts
+        sigma_w = np.sqrt( ((w1-w0)**2 + (w2-w0)**2)/2. + ((w3-w0)**2 + (w4-w0)**2)/2. )
 
-                # Append the water vapor data to the growning structure
-            if external['nQsfc'] <= 0:
-                qsecs = bt+to
-                wv = np.copy(w0)
-                swv = np.copy(sigma_w)
-            else:
-                qsecs = np.append(qsecs,bt+to)
-                wv = np.append(wv,w0)
-                swv = np.append(swv,sigma_w)
-            external['nQsfc'] = len(qsecs)
+            # Append the water vapor data to the growning structure
+        if external['nQsfc'] <= 0:
+            qsecs = bt+to
+            wv = np.copy(w0)
+            swv = np.copy(sigma_w)
+        else:
+            qsecs = np.append(qsecs,bt+to)
+            wv = np.append(wv,w0)
+            swv = np.append(swv,sigma_w)
+        external['nQsfc'] = len(qsecs)
 
         if(verbose >= 2):
             print(f"    After reading in met file {files[i]:s}, the number of p, t, u points ",
-                         f"are {external['nPsfc']:d}, {external['nTsfc']:d}, and {external['nQsfc']:d}")
+                            f"are {external['nPsfc']:d}, {external['nTsfc']:d}, and {external['nQsfc']:d}")
     # Done with the loop over reading the files
 
         # Now add the logic to set the data fields properly
     if vip['ext_sfc_pres_type'] == 0:
         ptype = 'none'
+        punit = ''
         external['nPsfc'] = 0
     else:
         punit = 'mb'
         ptype = 'External surface met station'
+    
     if vip['ext_sfc_temp_type'] == 0:
         ttype = 'none'
+        tunit = ''
         external['nTsfc'] = 0
     else:
         tunit = 'degC'
         ttype = 'External surface met station'
+    
     if vip['ext_sfc_wv_type'] == 0:
         qtype = 'none'
+        qunit = ''
         external['nQsfc'] = 0
     else:
         qunit = 'g/kg'
