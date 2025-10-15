@@ -210,7 +210,8 @@ full_vip = ({
     'cbh_path': {'value': '/data/ceil', 'comment': 'Path to the CBH data', 'default': True},
     'cbh_window_in': {'value': 20, 'comment': 'Inner temporal window (full-size) centered upon IRS time to look for cloud', 'default': True},
     'cbh_window_out': {'value': 180, 'comment': 'Outer temporal window (full-size) centered upon IRS time to look for cloud}', 'default': True},
-    'cbh_default_ht': {'value': 2.0, 'comment': 'Default CBH height [km AGL], if no CBH data found \n', 'default': True},
+    'cbh_default_ht': {'value': 2.0, 'comment': 'Default CBH height [km AGL], if no CBH data found', 'default': True},
+    'cbh_mpd_abc_thres': {'value':  10 ** -5.5 , 'comment': 'aerosol backscatter threshold for cloud\n', 'default': True},
 
     'output_rootname': {'value': 'None', 'comment': 'String with the rootname of the output file', 'default': True},
     'output_path': {'value': '/data/tropoe', 'comment': 'Path where the output file will be placed', 'default': True},

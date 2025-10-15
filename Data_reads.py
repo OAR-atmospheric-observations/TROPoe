@@ -15,9 +15,10 @@ import os, re
 import sys
 import numpy as np
 import scipy.io
-from netCDF4 import Dataset
+from netCDF4 import Dataset, num2date
 import calendar
 from datetime import datetime, timedelta
+import time
 
 import Other_functions
 import Output_Functions
@@ -1015,7 +1016,7 @@ def read_all_data(date, retz, tres, dostop, verbose, avg_instant, ch1_path,
         return fail, -999, -999, -999
 
     #Read in the ceilometer data
-    vceil = read_vceil(vceil_path, date, vceil_type, ret_secs, verbose)
+    vceil = read_vceil(vceil_path, date, vceil_type, ret_secs, vip['cbh_mpd_abc_thres'], verbose)
 
     if vceil['success'] < 0:
         fail = 1
@@ -1951,7 +1952,7 @@ def read_irs_sum(path,date,irs_type,smooth_noise,verbose):
 # This function read in the ceilometer/vertically pointing lidar data.
 ################################################################################
 
-def read_vceil(path, date, vceil_type, ret_secs, verbose):
+def read_vceil(path, date, vceil_type, ret_secs, mpd_abc_thres, verbose):
     if verbose >= 2:
         print('  Reading ceilometer data in ' + path)
 
@@ -2005,6 +2006,14 @@ def read_vceil(path, date, vceil_type, ret_secs, verbose):
         print('             DWD CHM15k style ceilometer input')
         print('                     Files named "*ceil*nc" ')
         print('                     Reads field "cbh(3,time)", which has units m AGL')
+        print('   cbh_type=9 --->')
+        print('             Vaisala CF51 BL-View stlye ceilometer input')
+        print('                     Files named "L2*nc" ')
+        print('                     Reads field "cloud_data[time,0]", which has units m AGL')
+        print('   cbh_type=10 -->')
+        print('             CBH derived from NCAR MPD aerosol_backscatter_coefficient')
+        print('                     Files named "mpd04*nc" ')
+        print('                     CBH comes from range coordinate variable, units m AGL')
         print('-------------------------------------------------------')
         print(' ')
         err = {'success':-1}
@@ -2243,12 +2252,118 @@ def read_vceil(path, date, vceil_type, ret_secs, verbose):
         cbh = cbh/1000.              # Convert m AGL to km AGL
         bt  = secs[0]
 
+    elif vceil_type == 9:
+        if verbose >= 1:
+            print('  Reading in Viasala CL51 ceilometer data (L2 BL-View NetCDF files)')
+        for i in range(len(udate)):
+            tempfiles, status = (findfile(path, '*(alc|ceil|L2)*' + udate[i] + '*.nc'))
+            if status == 1:
+                return err
+            files = files + tempfiles
+        if len(files) == 0:
+            print('    No CBH files found for this date')
+            return err
+
+        for i in range(len(files)):
+            if verbose == 3:
+                print('    Reading the file ' + files[i])
+            fid = Dataset(files[i], 'r')
+            fid.set_auto_mask(False)
+            to = fid.variables['time'][:].astype('float')
+            # CL51 supports upto 3 cloud layers; we want the first (lowest); hence the [:, 0]
+            cbhx = fid.variables['cloud_data'][:, 0]
+            fid.close()
+
+            if i == 0:
+                secs = to
+                cbh = np.copy(cbhx)
+            else:
+                secs = np.append(secs, to)
+                cbh = np.append(cbh, cbhx)
+
+        cbh = cbh / 1000.  # Convert m AGL to km AGL
+        bt = secs[0]
+
+        nonpos = np.where(cbh <= 0)
+        if len(nonpos) > 1:
+            print('     Some CBH values are non-positive!! ')
+
+    elif vceil_type == 10:
+        if verbose >= 1:
+            print('  Reading in CBH data from NCAR MPD datasets')
+        for i in range(len(udate)):
+            tempfiles, status = (findfile(path, 'mpd04.*' + udate[i] + '*.nc'))
+            if status == 1:
+                return err
+            files = files + tempfiles
+        if len(files) == 0:
+            print('    No CBH files found for this date')
+            return err
+
+        for i in range(len(files)):
+            if verbose == 3:
+                print('    Reading the file ' + files[i])
+            fid = Dataset(files[i], 'r')
+            fid.set_auto_mask(False)
+            tvar = fid.variables['time']
+            tsecs = tvar[:].astype('float')
+            aerosolBackscatter = fid.variables['Aerosol_Backscatter_Coefficient']
+            lidarrange = fid.variables['range']
+
+            # The premise here is that aerosol-backscatter (ABC) values above a specific
+            # threshold can be considered cloud. The algorithm then for finding CBH is
+            # for each time step, search ABC along the range dimension for >= the threshold,
+            # and if found, the index along the range dimension is used to look up the
+            # height in the 'range' coordinate variable.
+            cbhx = np.zeros(len(tsecs), float)
+            for j in range(len(tsecs)):
+                for k in range(len(lidarrange)):
+                    if aerosolBackscatter[j, k] > mpd_abc_thres:
+                        cbhx[j] = lidarrange[k]
+                        break
+
+            cal = 'standard'
+            print(tvar)
+            if 'calendar' in tvar.ncattrs():
+                cal = tvar.calendar
+            tsecs = num2date(tvar, tvar.units, calendar=cal,
+                                only_use_cftime_datetimes=False, only_use_python_datetimes=True)
+            tsecs = [x.timestamp() for x in tsecs]
+
+            fid.close()
+
+            # convert from "secs since start of day" to unix time
+            #y = int(udate[i][0:4])
+            #m = int(udate[i][4:6])
+            #d = int(udate[i][6:8])
+            #dt = datetime(y, m, d, 0, 0)
+            #basetime = time.mktime(dt.timetuple())
+            #print(y, m, d, dt, basetime)
+            #tsecs = tsecs + basetime
+            print(files[i], ":")
+            print(tsecs)
+            print(cbhx)
+
+            if i == 0:
+                secs = tsecs
+                cbh = np.copy(cbhx)
+            else:
+                secs = np.append(secs, tsecs)
+                cbh = np.append(cbh, cbhx)
+
+        cbh = cbh / 1000.  # Convert m AGL to km AGL
+        bt = secs[0]
+
+        foo = np.where(cbh <= 0)
+        if len(foo) > 1:
+            print('     Some CBH values are non-positive!! ')
+
     else:
         print('Error in read_vceil: Undefined ceilometer type')
         return err
 
-    # Put in a trap for the GDL version of the code, as occassionally some
-    # of Greg's mimiced ceilometer data files (generated from ASOS/AWOS data
+    # Put in a trap for the GDL version of the code, as occasionally some
+    # of Greg's mimicked ceilometer data files (generated from ASOS/AWOS data
     # have the base_time as type int64, which GDL did not handle well...
 
     if (bt == 0):
