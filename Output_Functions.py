@@ -1240,13 +1240,15 @@ def create_xret(xret, fsample, vip, irs, Xa, Sa, z, bands, obsdim, obsflag, shou
     lwp = fid.variables['lwp'][:]
     xXa = fid.variables['Xa'][:]
     xSa = fid.variables['Sa'][:]
+    co2 = fid_variables['co2'][:]
+    sco2 = fid_variables['sigma_co2'][:]
     fid.close()
 
     secs = bt+to
 
     # Load the in_tropoe structure with the last good profile (if one exists)
     # Be sure to keep the logic to identify samples that go into in_tropoe the same as in TROPoe.py
-    if((vip['add_tropoe_T_input_flag'] == 1) | (vip['add_tropoe_q_input_flag'] == 1)):
+    if((vip['add_tropoe_T_input_flag'] == 1) | (vip['add_tropoe_q_input_flag'] == 1) | (vip['add_tropoe_co2_input_flag'] == 1)):
         idx = -1
         for i in range(len(secs)):
             if((gfac[i] < vip['add_tropoe_gamma_threshold']) & ((cbh[i] > vip['add_tropoe_input_cbh_thres']) | (lwp[i] < vip['add_tropoe_input_lwp_thres']))):
@@ -1255,7 +1257,8 @@ def create_xret(xret, fsample, vip, irs, Xa, Sa, z, bands, obsdim, obsflag, shou
             print(f'  Extracted retrieved profile at {xhour[idx]:.4f} UTC to the "in_tropoe" structure, to be used as input later')
             in_tropoe = {'secs':secs[idx], 'height':xz, 'pblh':pblh[idx], 'lwp':lwp[idx],
                            'temperature':np.copy(xt[idx,:]), 'waterVapor':np.copy(xq[idx,:]),
-                           'sigma_temperature':np.copy(xst[idx,:]), 'sigma_waterVapor':np.copy(xsq[idx,:])}
+                           'sigma_temperature':np.copy(xst[idx,:]), 'sigma_waterVapor':np.copy(xsq[idx,:]), 
+                           'co2':np.copy(co2[idx,:]), 'sigma_co2':np.copy(sco2[idx,:])}
 
     # Convert the masked arrays to ndarrays
     #   Note that setting the mask values to zero should not do anything, as there shouldn't

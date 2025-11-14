@@ -2582,8 +2582,9 @@ def inflate_in_tropoe_uncertainty(flag, sampleTime, in_tropoe, zSa, Sa, vip, ver
     tres = vip['tres']*60       # get the temporal resolution of the retrievals in seconds
 
         # Extract out the 1-sigma uncertainties from the prior
-    Sa_sigT = sig_t = np.sqrt(np.diag(Sa))[0:len(zSa)]
-    Sa_sigq = sig_t = np.sqrt(np.diag(Sa))[len(zSa):2*len(zSa)]
+    Sa_sigT = np.sqrt(np.diag(Sa))[0:len(zSa)]
+    Sa_sigq = np.sqrt(np.diag(Sa))[len(zSa):2*len(zSa)]
+    Sa_sigc = np.sqrt(np.diag(Sa))[2*len(zSa)+4:2*len(zSa)+7]
 
         # Only apply logic if there is a valid profile in the in_tropoe structure (i.e., secs > 0)
     if in_tropoe['secs'] > 0:
@@ -2596,9 +2597,11 @@ def inflate_in_tropoe_uncertainty(flag, sampleTime, in_tropoe, zSa, Sa, vip, ver
             print('ERROR in inflate_in_tropoe_uncertainty: the time delta must be strictly positive -- aborting')
             sys.exit()
                 # Noise inflation factor
-        inflateFactor  = np.sqrt(1 + (delt - tres)/tres)
+        inflateFactorTQ   = np.sqrt(1 + (delt - tres)/tres)
+        inflateFactorCO2a = np.sqrt(1 + (delt - tres)/(vip['add_tropoe_co2_delay_value'][0]*tres))
+        inflateFactorCO2b = np.sqrt(1 + (delt - tres)/(vip['add_tropoe_co2_delay_value'][1]*tres))
         if verbose > 1:
-            print(f"      Inflating in_tropoe {flag:s} profile by a factor of {inflateFactor:.2f} using delt = {delt:.1f} and tres = {tres:.1f}")
+            print(f"      Inflating in_tropoe {flag:s} profile by a factor of {inflateFactorTQ:.2f} using delt = {delt:.1f} and tres = {tres:.1f}")
                 # Determine what profile to scale
         if flag == 'T':
             eprofile = in_tropoe['sigma_temperature']
@@ -2610,8 +2613,12 @@ def inflate_in_tropoe_uncertainty(flag, sampleTime, in_tropoe, zSa, Sa, vip, ver
             scaleht  = vip['add_tropoe_q_noise_mult_hts']
             scaleval = vip['add_tropoe_q_noise_mult_val']
             minvalue = 1.0      # Will require that the multiplier always be above 1
+        elif flag == 'co2':
+            eprofile = in_tropoe['sigma_co2']
+            scaleval = vip['add_tropoe_co2_noise_adder']
+            minvalue = 0.0      # Will require that the adder always be positive
         else:
-            print('Error in inflate_in_tropoe_uncertainty: the flag selecting temp or WVMR was not set properly -- aborting')
+            print('Error in inflate_in_tropoe_uncertainty: the flag selecting temp, WVMR, or co2 was not set properly -- aborting')
             sys.exit()
                 # The scaleht profiles are all 3-pt arrays.  If the VIP.add_tropoe_use_pblh_flag is set, then replace the middle
                 # then replace the center value with the max{in_tropoe.pblh,scaleht(1)}
@@ -2621,12 +2628,20 @@ def inflate_in_tropoe_uncertainty(flag, sampleTime, in_tropoe, zSa, Sa, vip, ver
             print(f"        Using {scaleht[1]:3f} km as the pivot point in the inflation of {flag:s} from previous TROPoe input profile")
                 # Interpolate the scale factor profile to the current height grid,
                 # but trap any points that go below the minimum value and reset them
-        sf = np.interp(in_tropoe['height'],scaleht,scaleval)
-        foo = np.where(sf < minvalue) [0]
-        if len(foo) > 0:
-            sf[foo] = minvalue
-                # Now inflate this noise profile by the inflation factor, which is govered by the time difference
-        sf = sf * inflateFactor
+        if((flag == 'T') | (flag == 'q')):
+            sf = np.interp(in_tropoe['height'],scaleht,scaleval)
+            foo = np.where(sf < minvalue) [0]
+            if len(foo) > 0:
+                sf[foo] = minvalue
+                    # Now inflate this noise profile by the inflation factor, which is govered by the time difference
+            sf = sf * inflateFactorTQ
+        else:
+            sf[0] = scaleval[0] * inflateFactorCO2a
+            sf[1] = scaleval[1] * inflateFactorCO2b
+            foo = np.where(sf < minvalue) [0]
+            if len(foo) > 0:
+                sf[foo] = minvalue
+
                 # Add or multiply the error profile with this new scale factor profile
         if flag == 'T':
             eprofile  = eprofile + sf
@@ -2634,6 +2649,9 @@ def inflate_in_tropoe_uncertainty(flag, sampleTime, in_tropoe, zSa, Sa, vip, ver
         elif flag == 'q':
             eprofile = eprofile * sf
             mxerrprof = Sa_sigq
+        elif flag == 'co2':
+            eprofile = eprofile + sf
+            mxerrprof = Sa_sigc
         else:
             print('Error in inflate_in_tropoe_uncertainty: the flag selecting temp or WVMR was not set properly -- aborting')
             sys.exit()

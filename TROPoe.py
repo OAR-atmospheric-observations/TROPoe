@@ -11,7 +11,7 @@
 #
 # ----------------------------------------------------------------------------
 
-__version__ = '0.19.5'
+__version__ = '0.19.6'
 
 import os
 import sys
@@ -800,11 +800,15 @@ else:
 
 # Define the structure for the "TROPoe_in" -- which will use the logic from Adler et al. AMT 2024
 # It is entirely empty right now, but the space needs to be allocated
-missing = np.zeros(len(z))-999.
+missing  = np.zeros(len(z))-999.
+missing3 = np.zeros(3)-999.
 in_tropoe = {'secs':0, 'height':z, 'pblh':-1., 'lwp':-999., 
-             'temperature':missing, 'waterVapor':missing, 'sigma_temperature':np.abs(missing), 'sigma_waterVapor':np.abs(missing)}
+             'temperature':missing, 'waterVapor':missing, 'sigma_temperature':np.abs(missing), 'sigma_waterVapor':np.abs(missing), 
+             'co2':np.abs(missing3), 'sigma_co2':np.abs(missing3)}
 if((vip['add_tropoe_T_input_flag'] == 1) | (vip['add_tropoe_q_input_flag'] == 1)):
     print('  The option to use previous good TROPoe profiles as input is turned on')
+if((vip['add_tropoe_co2_input_flag'] == 1)):
+    print('  The option to use previous good TROPoe co2 retrieval as input is turned on')
 
 # This defines the extra vertical layers that will be added to both
 # the infrared and microwave radiative transfer calculations
@@ -1038,6 +1042,9 @@ for i in range(len(irs['secs'])):                        # { loop_i
         dimY = np.append(dimY, mwrscan['dim'])
 
     if vip['add_tropoe_T_input_flag'] == 1:
+        if(dotemp < 1):
+            print('Error: temperature retrieval must be enabled if the add_tropoe_t_input_flag is turned on - aborting')
+            VIP_Databases_functions.abort(lbltmpdir,date)
         Y = np.append(Y, in_tropoe['temperature'])
         inflated_sigma = Other_functions.inflate_in_tropoe_uncertainty('T',irs['secs'][i],in_tropoe,z,Sa,vip,verbose=verbose)
         nSy = np.diag(inflated_sigma**2)
@@ -1048,6 +1055,9 @@ for i in range(len(irs['secs'])):                        # { loop_i
         dimY = np.append(dimY, in_tropoe['height'])
 
     if vip['add_tropoe_q_input_flag'] == 1:
+        if(dowvmr < 1):
+            print('Error: WVMR retrieval must be enabled if the add_tropoe_q_input_flag is turned on - aborting')
+            VIP_Databases_functions.abort(lbltmpdir,date)
         Y = np.append(Y, in_tropoe['waterVapor'])
         inflated_sigma = Other_functions.inflate_in_tropoe_uncertainty('q',irs['secs'][i],in_tropoe,z,Sa,vip,verbose=verbose)
         nSy = np.diag(inflated_sigma**2)
@@ -1056,6 +1066,23 @@ for i in range(len(irs['secs'])):                        # { loop_i
         sigY = np.append(sigY, inflated_sigma)
         flagY = np.append(flagY, np.ones(len(inflated_sigma))*12)
         dimY = np.append(dimY, in_tropoe['height'])
+
+    if vip['add_tropoe_co2_input_flag'] == 1:
+        if(doco2 < 1):
+            print('Error: CO2 retrieval must be enabled if the add_tropoe_co2_input_flag is turned on - aborting')
+            VIP_Databases_functions.abort(lbltmpdir,date)
+            sys.exit()
+        Y = np.append(Y, in_tropoe['co2'])
+        inflated_sigma = Other_functions.inflate_in_tropoe_uncertainty('co2',irs['secs'][i],in_tropoe,z,Sa,vip,verbose=verbose)
+        print(inflated_sigma.shape)
+        nSy = np.diag(inflated_sigma**2)
+        zero = np.zeros((len(inflated_sigma),len(sigY)))
+        Sy = np.append(np.append(Sy,zero,axis=0),np.append(zero.T,nSy,axis=0),axis=1) # DDT-delete
+        sigY = np.append(sigY, inflated_sigma)
+        flagY = np.append(flagY, np.ones(len(inflated_sigma))*13)
+        dimY = np.append(dimY, np.arange(3))
+        print("DDT -- shape of variables")
+        print(Y.shape, nSy.shape, sigY.shape, flagY.shape, dimY.shape)
 
     nY = len(Y)
 
@@ -1069,6 +1096,7 @@ for i in range(len(irs['secs'])):                        # { loop_i
         if len(feh1) <= 0:
             if verbose >= 2:
                 print('Error: Unable to find any IRS wavenumbers in this test (inflate noise band)')
+            VIP_Databases_functions.abort(lbltmpdir,date)
             sys.exit()
 
             # See if the spectral band to inflate the noise is actually included in the desired observations
@@ -1435,6 +1463,7 @@ for i in range(len(irs['secs'])):                        # { loop_i
                             print('Error: The tape3 selected in the VIP does not span the desired IRS calculation range')
                             print(f"            TAPE3 spans from {tape3_info['minw']:.3f} to {tape3_info['maxw']:.3f} cm-1")
                             print(f"            Needed LBLRTM range is {lblwnum1:.3f} to {lblwnum2:.3f} cm-1")
+                            VIP_Databases_functions.abort(lbltmpdir,date)
                             sys.exit()
 
                     # If we are using the prior for the first guess (FG=1), and we have not already loaded
@@ -1862,6 +1891,24 @@ for i in range(len(irs['secs'])):                        # { loop_i
                 KK[foo[ii],foo[ii]+int(nX/2)] = 1
             Kij = np.append(Kij, KK, axis = 0)
             FXn = np.append(FXn,FF)
+
+        # Perform the forward model calculation and compute the Jacobian for the co2 "in_tropoe" portion of the observation vector
+        # The forward model is non-trivial, as radiative transfer will be needed.  However, we will assume that the jacobian
+        # that was computed in the RT for this section (regular data) is the same as for the in_tropoe section
+        foo = np.where(flagY == 13)[0]
+        if len(foo) > 0:
+            FF  = Xn[nX+4+np.arange(3)]
+            print(f"DDT -- here are the co2 values used for the in_tropoe part: {FF:.2f}")
+            KK  = np.zeros((len(in_tropoe['co2']),len(Xn)))
+            print(KK.shape)
+            print(Kij.shape)
+            foo = np.where(in_tropoe['co2'] > -900)[0]
+            for ii in range(len(foo)):
+                KK[foo[ii],:] = Kij[foo[ii]+nX+4,:]
+            Kij = np.append(Kij, KK, axis = 0)
+            FXn = np.append(FXn,FF)
+            print(f"DDT -- the code needs some serious tests right here to make sure all is good!")
+            sys.exit()
 
 
         ########
@@ -2367,15 +2414,16 @@ for i in range(len(irs['secs'])):                        # { loop_i
     # Be sure to keep the logic to identify samples that go into in_tropoe the same as in Output_Functions.py
     if((gfac < vip['add_tropoe_gamma_threshold']) &
             ((cbh > vip['add_tropoe_input_cbh_thres']) | (Xn[nX] < vip['add_tropoe_input_lwp_thres']))):
-        if((vip['add_tropoe_T_input_flag'] == 1) | (vip['add_tropoe_q_input_flag'] == 1)):
+        if((vip['add_tropoe_T_input_flag'] == 1) | (vip['add_tropoe_q_input_flag'] == 1) | (vip['add_tropoe_co2_input_flag'] == 1)):
             if verbose >= 1:
                 print('    Adding retrieved profile to the "in_tropoe" structure, to be used as input later')
-            sig_ret   = np.zeros(nX)
-            for ii in range(nX):
+            sig_ret   = np.zeros(nX+13)
+            for ii in range(nX+13):
                 sig_ret[ii] = np.sqrt(Sop[ii,ii])
             in_tropoe = {'secs':irs['secs'][i], 'height':z, 'pblh':pblh, 'lwp':Xn[nX], 
                            'temperature':np.copy(Xn[0:int(nX/2)]), 'waterVapor':np.copy(Xn[int(nX/2):nX]), 
-                           'sigma_temperature':np.copy(sig_ret[0:int(nX/2)]), 'sigma_waterVapor':np.copy(sig_ret[int(nX/2):nX])}
+                           'sigma_temperature':np.copy(sig_ret[0:int(nX/2)]), 'sigma_waterVapor':np.copy(sig_ret[int(nX/2):nX]), 
+                           'co2':np.copy(Xn[nX+4+np.arange(3)]), 'sigma_co2':np.copy(sig_ret[nX+4+np.arange(3)])}
 
     # Note that I will also save all of the iterations for the
     # last time sample that was processed (i.e., "xsamp")
