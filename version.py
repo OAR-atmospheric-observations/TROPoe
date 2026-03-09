@@ -19,6 +19,6 @@
 
 def get_software_version():
 
-   TROPoe_software_version = '1.0-1-g1ac17f3'
+   TROPoe_software_version = '1.0-4-gd2f49bb'
 
    return TROPoe_software_version
