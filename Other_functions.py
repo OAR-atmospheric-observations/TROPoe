@@ -2256,7 +2256,7 @@ def cape_cin(t,p,lcl):
             intersect_x = intersect_x[duplicates]
             intersect_y = intersect_y[duplicates]
         
-        x = np.concatenate((p, intersect_x))
+        x = np.concatenate((new_p, intersect_x))
         y = np.concatenate((y, intersect_y))
         
         # Resort so that the data are in order
