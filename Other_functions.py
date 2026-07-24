@@ -2604,7 +2604,13 @@ def inflate_in_tropoe_uncertainty(flag, sampleTime, in_tropoe, zSa, Sa, vip, ver
             print('ERROR in inflate_in_tropoe_uncertainty: the time delta must be strictly positive -- aborting')
             sys.exit()
                 # Noise inflation factor
-        inflateFactor  = np.sqrt(1 + (delt - tres)/tres)
+                # Adjust this noise inflation factor to be insensitive to
+                # the tres per notes on 19 May 2026
+        tres5 = 5*60       # This is the reference time resolution [seconds]
+        tmp   = 1. + (delt - tres5)/tres5
+        if tmp < 1:
+            tmp = 1
+        inflateFactor  = np.sqrt(tmp)
         if verbose > 1:
             print(f"      Inflating in_tropoe {flag:s} profile by a factor of {inflateFactor:.2f} using delt = {delt:.1f} and tres = {tres:.1f}")
                 # Determine what profile to scale
