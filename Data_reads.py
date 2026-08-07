@@ -4659,8 +4659,8 @@ def read_tropoe(filename,vip):
     rmsr  = fid.variables['rmsr'][:]
     fid.close()
     
-    # Only keep the data that pass the QC: gamma = 1 and ...
-    foo = np.where((gamm < 2) & (rmsr <= vip['tropoe_rmsr_thres']))[0]
+    # Only keep the data that pass the QC specified by thresholds in the VIP file
+    foo = np.where((gamm < vip['tropoe_gamma_thres']) & (rmsr <= vip['tropoe_rmsr_thres']))[0]
     if len(foo) > 0:
         to    = to[foo]
         hour  = hour[foo]
