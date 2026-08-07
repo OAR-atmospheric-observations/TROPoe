@@ -2606,8 +2606,8 @@ def inflate_in_tropoe_uncertainty(flag, sampleTime, in_tropoe, zSa, Sa, vip, ver
                 # Noise inflation factor
                 # Adjust this noise inflation factor to be insensitive to
                 # the tres per notes on 19 May 2026
-        tres5 = 5*60       # This is the reference time resolution [seconds]
-        tmp   = 1. + (delt - tres5)/tres5
+        tres10 = 10*60       # This is the reference time resolution [seconds], used in Adler et al. 2024
+        tmp   = 1. + (delt - tres10)/tres10
         if tmp < 1:
             tmp = 1
         inflateFactor  = np.sqrt(tmp)
