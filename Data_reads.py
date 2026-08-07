@@ -1058,7 +1058,7 @@ def read_all_data(date, vip, dostop, verbose):
         mwrscan_data = ({'type':vip['mwrscan_type'],'success':0})
 
     #Read in the ceilometer data
-    vceil = read_vceil(vip['cbh_path'], date, vip['cbh_type'], ret_secs, verbose)
+    vceil = read_vceil(vip['cbh_path'], date, vip, ret_secs, verbose)
 
     if vceil['success'] < 0:
         fail = 1
@@ -2001,7 +2001,7 @@ def read_irs_sum(path,date,irs_type,smooth_noise,verbose):
 # This function read in the ceilometer/vertically pointing lidar data.
 ################################################################################
 
-def read_vceil(path, date, vceil_type, ret_secs, verbose):
+def read_vceil(path, date, vip, ret_secs, verbose):
     if verbose >= 2:
         print('  Reading ceilometer data in ' + path)
 
@@ -2015,7 +2015,7 @@ def read_vceil(path, date, vceil_type, ret_secs, verbose):
     err = {'success':0}
 
     files = []
-    if vceil_type < 0:
+    if vip['cbh_type'] < 0:
         print(' ')
         print('------------------------------------------------------')
         print('****** options for the VIP parameter "cbh_type" ******')
@@ -2055,15 +2055,21 @@ def read_vceil(path, date, vceil_type, ret_secs, verbose):
         print('             DWD CHM15k style ceilometer input')
         print('                     Files named "*ceil*nc" ')
         print('                     Reads field "cbh(3,time)", which has units m AGL')
+        print('   cbh_type=20 --->')
+        print('             Generic cloud base height reader')
+        print('                     Files named "*{ceil,cbh}*{nc,cdf}" ')
+        print('                     User can specify the style of the time field via the VIP')
+        print('                     User can specify the name of the CBH field via the VIP')
+        print('                     User can specify the units of the CBH field via the VIP')
         print('-------------------------------------------------------')
         print(' ')
         err = {'success':-1}
         return err
-    elif vceil_type == 0:
+    elif vip['cbh_type'] == 0:
         if verbose >= 1:
             print('  User selected the option indicating to use the default cloud cloud base height set in the VIP')
         return err
-    elif ((vceil_type == 1) | (vceil_type == 5)):
+    elif ((vip['cbh_type'] == 1) | (vip['cbh_type'] == 5)):
         if verbose >= 1:
             print('  Reading in CEIL data')
         for i in range(len(udate)):
@@ -2098,7 +2104,7 @@ def read_vceil(path, date, vceil_type, ret_secs, verbose):
                 secs = np.append(secs,bt+to)
                 cbh = np.append(cbh,cbhx)
 
-    elif vceil_type == 2:
+    elif vip['cbh_type'] == 2:
         if verbose >= 1:
             print('  Reading in ASOS/AWOS ceilometer')
 
@@ -2129,7 +2135,7 @@ def read_vceil(path, date, vceil_type, ret_secs, verbose):
                 secs = np.append(secs,bt+to)
                 cbh = np.append(cbh,cbhx)
 
-    elif vceil_type == 3:
+    elif vip['cbh_type'] == 3:
         if verbose >= 1:
             print('  Reading in CLAMPS dlfp data')
         for i in range(len(udate)):
@@ -2158,7 +2164,7 @@ def read_vceil(path, date, vceil_type, ret_secs, verbose):
                 secs = np.append(secs,bt+to)
                 cbh = np.append(cbh,cbhx)
 
-    elif vceil_type == 4:
+    elif vip['cbh_type'] == 4:
         if verbose >= 1:
             print('  Reading in ARM dlprofwstats data')
         for i in range(len(udate)):
@@ -2188,7 +2194,7 @@ def read_vceil(path, date, vceil_type, ret_secs, verbose):
                 cbh = np.append(cbh,cbhx)
         cbh = cbh/1000.              # Convert m AGL to km AGL
 
-    elif vceil_type == 6:
+    elif vip['cbh_type'] == 6:
         if verbose >= 1:
             print('  Reading in JOYCE Jenoptic data')
         for i in range(len(udate)):
@@ -2218,7 +2224,7 @@ def read_vceil(path, date, vceil_type, ret_secs, verbose):
         secs -= 2.0828448e+09   # This is the appropriate offset to apply to get to unix time
         cbh = cbh/1000.              # Convert m AGL to km AGL
 
-    elif vceil_type == 7:
+    elif vip['cbh_type'] == 7:
         if verbose >= 1:
             print('  Reading in E-PROFILE ceilometer data')
         for i in range(len(udate)):
@@ -2262,7 +2268,7 @@ def read_vceil(path, date, vceil_type, ret_secs, verbose):
                               'in the E-PROFILE ceilometer reader')
             cbh[foo] = vis[foo]
 
-    elif vceil_type == 8:
+    elif vip['cbh_type'] == 8:
         if verbose >= 1:
             print('  Reading in DWD CHM15k ceilometer data')
         for i in range(len(udate)):
@@ -2293,18 +2299,71 @@ def read_vceil(path, date, vceil_type, ret_secs, verbose):
         cbh = cbh/1000.              # Convert m AGL to km AGL
         bt  = secs[0]
 
+    elif vip['cbh_type'] == 20:
+        if verbose >= 1:
+            print('  Reading in generic CBH dataset')
+
+        files = []
+        for i in range(len(udate)):
+            tempfiles, status = (findfile(vip['cbh_path'],'*'+vip['cbh_rootname']+'*' + udate[i] + '*.(cdf|nc)'))
+            if status == 1:
+                return err
+            files = files + tempfiles
+
+        # Print out a warning if no files are found, but don't need to fail since things are handled later
+        if len(files) == 0:
+            if verbose >= 1:
+                print('    No CBH files found in the input directory for this date')
+                return err
+
+        # if len(files) == 0, this is not run
+        for i in range(len(files)):
+            fid = Dataset(files[i], 'r')
+            fid.set_auto_mask(False)
+
+            # Read in the time field(s)
+            if vip['cbh_time_format'] == 0:
+                bt = fid.variables['base_time'][:].astype('float')
+            elif vip['cbh_time_format'] == 1:
+                bt = 0
+            if len(np.where(np.array(list(fid.variables.keys())) == 'time_offset')[0]) > 0:
+                to = fid.variables['time_offset'][:].astype('float')
+            elif len(np.where(np.array(list(fid.variables.keys())) == 'time')[0]) > 0:
+                to = fid.variables['time'][:].astype('float')
+            else:
+                fid.close()
+                print('    Problem reading the CBH time data -- returning missing data')
+                return err
+
+            # Now read in the CBH field, as specified by the VIP file
+            if len(np.where(np.array(list(fid.variables.keys())) == vip['cbh_fieldname'])[0]) > 0:
+                cbhx = fid.variables[vip['cbh_fieldname']][:].astype('float')
+                if vip['cbh_units'] == 1:
+                    cbhx /= 1000.                        # Convert m AGL to km AGL
+                elif vip['cbh_units'] == 2:
+                    cbhx *=  1.                          # Do nothing (units are correct)
+                else:
+                    fid.close()
+                    print(f"    Problem converting CBH units in the reader -- ",
+                                f"undefined option {vip['cbh_units']:d} but needs to be one of (1,2)")
+                    sys.exit()
+            else:
+                print('    Problem reading the CBH data -- the field ',
+                            vip['cbh_fieldname'],' does not exist')
+                cbhx = np.ones(len(to))*(-999.)
+
+            if i == 0:
+                secs = bt+to
+                cbh  = np.copy(cbhx)
+            else:
+                secs = np.append(secs,bt+to)
+                cbh  = np.append(cbh,cbhx)
+
     else:
         print('Error in read_vceil: Undefined ceilometer type')
         return err
 
-    # Put in a trap for the GDL version of the code, as occassionally some
-    # of Greg's mimiced ceilometer data files (generated from ASOS/AWOS data
-    # have the base_time as type int64, which GDL did not handle well...
-
-    if (bt == 0):
-        print('Error in read_vceil: Unable to read in base_time -- likely the GDL/int64 issue')
-        return err
-
+        # Now compute the yy,mm,dd and hour from the epoch time in "secs"
     yy = np.array([datetime.utcfromtimestamp(x).year for x in secs])
     mm = np.array([datetime.utcfromtimestamp(x).month for x in secs])
     dd = np.array([datetime.utcfromtimestamp(x).day for x in secs])
