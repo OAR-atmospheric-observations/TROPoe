@@ -1978,18 +1978,6 @@ for i in range(len(irs['secs'])):                        # { loop_i
         else:
             di2m = 9.0e9
 
-        # Perform the RH_limit test (i.e., make sure thew WVMR Is not too large
-        # such that RH > 100%)
-        if ((itern == 0) & (verbose >= 3)):
-            print('Testing for RH > 100%')
-        rh = Calcs_Conversions.w2rh(np.squeeze(Xnp1[int(nX/2):nX]), p, np.squeeze(Xnp1[0:int(nX/2)]),0) * 100   # units are %RH
-        feh = np.where(rh > 100)[0]
-        if len(feh) > 0:
-            if verbose >= 3:
-                print('RH is above 100% somewhere in this profile -- setting it to 100%')
-            rh[feh] = 100.
-            Xnp1[int(nX/2):nX,0] = Calcs_Conversions.rh2w(np.squeeze(Xnp1[0:int(nX/2)]), rh/100., p)
-
         # Perform the monotonically ascending potential temperature test (i.e
         # make sure that theta never decreases with height)
         if ((itern == 0) & (verbose >= 3)):
@@ -2036,6 +2024,17 @@ for i in range(len(irs['secs'])):                        # { loop_i
             # A nonphysical water vapor value exists so we are going interpolate across those values
             # by calling this function
             Xnp1[feh,0] = Other_functions.fix_nonphysical_wv(Xnp1[feh,0],z,Xa[feh],foo)
+
+        # Perform the RH_limit test (i.e., make sure thew WVMR Is not too large such that RH > 100%)
+        if ((itern == 0) & (verbose >= 3)):
+            print('Testing for RH > 100%')
+        rh = Calcs_Conversions.w2rh(np.squeeze(Xnp1[int(nX/2):nX]), p, np.squeeze(Xnp1[0:int(nX/2)]),0) * 100   # units are %RH
+        feh = np.where(rh > 100)[0]
+        if len(feh) > 0:
+            if verbose >= 3:
+                print('RH is above 100% somewhere in this profile -- setting it to 100%')
+            rh[feh] = 100.
+            Xnp1[int(nX/2):nX,0] = Calcs_Conversions.rh2w(np.squeeze(Xnp1[0:int(nX/2)]), rh/100., p)
 
         # Now test other variables in the retrieved state vector
         if dolcloud == 1:
@@ -2344,7 +2343,7 @@ for i in range(len(irs['secs'])):                        # { loop_i
                 'chi2':chi2, 'converged':converged}
 
         xsamp.append(xtmp)
-        print('    Converged! (best RMS after max_iter)')
+        print('    Converged! (best RMS after max_iter)')   # } end of while loop over iter
 
     # Store the data, regardless whether it converges or not
     if xret == []:
