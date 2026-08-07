@@ -305,7 +305,7 @@ full_tropoe_vip = ({
 
 full_mixcra_vip = ({
     'success': {'value': 0, 'comment': 'Interal success flag. Not for outside use', 'default': False},
-    'tres_lblrtm': {'value': 3, 'comment': 'Temporal resoltuion of the LBLRTM runs [h]', 'default':True},
+    'tres_lblrtm': {'value': 3.0, 'comment': 'Temporal resoltuion of the LBLRTM runs [h]', 'default':True},
     'workdir': {'value':'/data/tag', 'comment': 'The working directory for the iterating retrieval','default':True},
     'avg_instant': {'value': 1, 'comment': 'A flag to specify -1:avg with no sqrt(N), 0:avg with sqrt(N), or 1:instantaneous', 'default': False},
 
@@ -350,7 +350,8 @@ full_mixcra_vip = ({
     'mwr_time_delta': {'value': 0.083, 'comment': 'The maximum amount of time [hours] that the MWR zenith obs must be to the sampling time to be used \n', 'default': True},
 
     'tropoe_path': {'value': "/data/tropoe", 'comment': 'Path to TROPoe output files', 'default': True},
-    'tropoe_rmsr_thres': {'value': 5.0, 'comment': 'TROPoe input profiles need RMSr values below this threshold to be used \n', 'default': True},
+    'tropoe_rmsr_thres': {'value': 5.0, 'comment': 'TROPoe input profiles need RMSr values below this threshold to be used', 'default': True},
+    'tropoe_gamma_thres': {'value': 2.0, 'comment': 'TROPoe input profiles need gamma values below this threshold to be used \n', 'default': True},
 
     'station_lat': {'value': -999., 'comment': 'Station latitude [degN]; if negative get value from IRS/MWR data file', 'default': True},
     'station_lon': {'value': -999., 'comment': 'Station longitude [degE]; if negative get value from IRS/MWR data file', 'default': True},
@@ -389,6 +390,8 @@ full_mixcra_vip = ({
     'math_choice': {'value': 0, 'comment': 'The choice of Rodgers Equations to use 0->Eq 5.9, 1->Eq 5.8, 2->Eq 5.8 with annealing','default':False},
 
     'maxiter': {'value': 10, 'comment': 'The maximum number of iterations to use', 'default': False},
+    'annealing_step': {'value': 0.9, 'comment': 'The multiplier applied to the total optical depth increment for each iteration (must be in (0,1]; only used if math_choice is 2', 'default': False},
+    'annealing_min_tau': {'value': 0.3, 'comment': 'If the total optical depth change is less than this value, then the annealing is not applied; only used if math_choice is 2', 'default': False},
     'converge_factor': {'value': 0.2, 'comment': 'To be considered converged, di2m < converge_factor*dimY; must be (0,1]', 'default':False},
 
     'retrieve_lcloud': {'value': 1, 'comment': '0 - do not retrieve liquid clouds, 1 - retrieve liquid cloud properties', 'default': True},
