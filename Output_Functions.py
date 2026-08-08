@@ -569,61 +569,70 @@ def write_output(vip, ext_prof, mod_prof, ext_tseries, globatt, xret, prior,
         pblh.long_name = 'Planetary boundary layer height'
         pblh.units = dindex['units'][1]
         pblh.variable_type = varType_derived
+        pblh.comment0 = 'Computed from potential temperature'
         pblh.comment1 = 'This field is derived from the retrieved fields'
         pblh.comment2 = 'A value of -999 indicates that this field could not be computed (typically because the value was aphysical)'
         
+        pblhv = fid.createVariable('pblhv', 'f4', ('time',))
+        pblhv.long_name = 'Planetary boundary layer height'
+        pblhv.units = dindex['units'][2]
+        pblhv.variable_type = varType_derived
+        pblhv.comment0 = 'Computed from virtual potential temperature'
+        pblhv.comment1 = 'This field is derived from the retrieved fields'
+        pblhv.comment2 = 'A value of -999 indicates that this field could not be computed (typically because the value was aphysical)'
+
         sbih = fid.createVariable('sbih', 'f4', ('time',))
         sbih.long_name = 'Surface-based inversion height'
-        sbih.units = dindex['units'][2]
+        sbih.units = dindex['units'][3]
         sbih.variable_type = varType_derived
         sbih.comment1 = 'This field is derived from the retrieved fields'
         sbih.comment2 = 'A value of -999 indicates that this field could not be computed (typically because the value was aphysical)'
         
         sbim = fid.createVariable('sbim', 'f4', ('time',))
         sbim.long_name = 'Surface-based inversion magnitude'
-        sbim.units = dindex['units'][3]
+        sbim.units = dindex['units'][4]
         sbim.variable_type = varType_derived
         sbim.comment1 = 'This field is derived from the retrieved fields'
         sbim.comment2 = 'A value of -999 indicates that this field could not be computed (typically because the value was aphysical)'
         
         sblcl = fid.createVariable('sbLCL', 'f4', ('time',))
         sblcl.long_name = 'Lifted condesation level for a surface-based parcel'
-        sblcl.units = dindex['units'][4]
+        sblcl.units = dindex['units'][5]
         sblcl.variable_type = varType_derived
         sblcl.comment1 = 'This field is derived from the retrieved fields'
         sblcl.comment2 = 'A value of -999 indicates that this field could not be computed (typically because the value was aphysical)'
         
         sbcape = fid.createVariable('sbCAPE', 'f4', ('time',))
         sbcape.long_name = 'Convective available potential energy for a surface-based parcel'
-        sbcape.units = dindex['units'][5]
+        sbcape.units = dindex['units'][6]
         sbcape.variable_type = varType_derived
         sbcape.comment1 = 'This field is derived from the retrieved fields'
         sbcape.comment2 = 'A value of -9999 indicates that this field could not be computed (typically because the value was aphysical)'
         
         sbcin = fid.createVariable('sbCIN', 'f4', ('time',))
         sbcin.long_name = 'Convective inhibition for a surface-based parcel'
-        sbcin.units = dindex['units'][6]
+        sbcin.units = dindex['units'][7]
         sbcin.variable_type = varType_derived
         sbcin.comment1 = 'This field is derived from the retrieved fields'
         sbcin.comment2 = 'A value of -9999 indicates that this field could not be computed (typically because the value was aphysical)'
         
         mllcl = fid.createVariable('mlLCL', 'f4', ('time',))
         mllcl.long_name = 'Lifted condesation level for a mixed-layer parcel'
-        mllcl.units = dindex['units'][7]
+        mllcl.units = dindex['units'][8]
         mllcl.variable_type = varType_derived
         mllcl.comment1 = 'This field is derived from the retrieved fields'
         mllcl.comment2 = 'A value of -999 indicates that this field could not be computed (typically because the value was aphysical)'
         
         mlcape = fid.createVariable('mlCAPE', 'f4', ('time',))
         mlcape.long_name = 'Convective available potential energy for a mixed-layer parcel'
-        mlcape.units = dindex['units'][8]
+        mlcape.units = dindex['units'][9]
         mlcape.variable_type = varType_derived
         mlcape.comment1 = 'This field is derived from the retrieved fields'
         mlcape.comment2 = 'A value of -9999 indicates that this field could not be computed (typically because the value was aphysical)'
         
         mlcin = fid.createVariable('mlCIN', 'f4', ('time',))
         mlcin.long_name = 'Convective inhibition for a mixed-layer parcel'
-        mlcin.units = dindex['units'][9]
+        mlcin.units = dindex['units'][10]
         mlcin.variable_type = varType_derived
         mlcin.comment1 = 'This field is derived from the retrieved fields'
         mlcin.comment2 = 'A value of -9999 indicates that this field could not be computed (typically because the value was aphysical)'
@@ -640,13 +649,23 @@ def write_output(vip, ext_prof, mod_prof, ext_tseries, globatt, xret, prior,
         sigma_pblh.long_name = '1-sigma uncertainties in the PBL height'
         sigma_pblh.units = dindex['units'][1]
         sigma_pblh.variable_type = varType_uncertainty
+        sigma_pblh.comment0 = 'Computed from potential temperature'
         sigma_pblh.comment1 = 'This field is derived from the retrieved fields'
         sigma_pblh.comment2 = 'The uncertainties were determined using a monte carlo sampling of the posterior covariance matrix'
         sigma_pblh.comment3 = 'A value of -999 indicates that the uncertainty in this inded could not be computed (typically because the values were all unphysical)'
         
+        sigma_pblhv = fid.createVariable('sigma_pblhv', 'f4', ('time',))
+        sigma_pblhv.long_name = '1-sigma uncertainties in the PBL height'
+        sigma_pblhv.units = dindex['units'][2]
+        sigma_pblhv.variable_type = varType_uncertainty
+        sigma_pblhv.comment0 = 'Computed from virtual potential temperature'
+        sigma_pblhv.comment1 = 'This field is derived from the retrieved fields'
+        sigma_pblhv.comment2 = 'The uncertainties were determined using a monte carlo sampling of the posterior covariance matrix'
+        sigma_pblhv.comment3 = 'A value of -999 indicates that the uncertainty in this inded could not be computed (typically because the values were all unphysical)'
+
         sigma_sbih = fid.createVariable('sigma_sbih', 'f4', ('time',))
         sigma_sbih.long_name = '1-sigma uncertainties in the surface-based inversion height'
-        sigma_sbih.units = dindex['units'][2]
+        sigma_sbih.units = dindex['units'][3]
         sigma_sbih.variable_type = varType_uncertainty
         sigma_sbih.comment1 = 'This field is derived from the retrieved fields'
         sigma_sbih.comment2 = 'The uncertainties were determined using a monte carlo sampling of the posterior covariance matrix'
@@ -654,7 +673,7 @@ def write_output(vip, ext_prof, mod_prof, ext_tseries, globatt, xret, prior,
         
         sigma_sbim = fid.createVariable('sigma_sbim', 'f4', ('time',))
         sigma_sbim.long_name = '1-sigma uncertainties in the surface-based inversion magnitude'
-        sigma_sbim.units = dindex['units'][3]
+        sigma_sbim.units = dindex['units'][4]
         sigma_sbim.variable_type = varType_uncertainty
         sigma_sbim.comment1 = 'This field is derived from the retrieved fields'
         sigma_sbim.comment2 = 'The uncertainties were determined using a monte carlo sampling of the posterior covariance matrix'
@@ -662,7 +681,7 @@ def write_output(vip, ext_prof, mod_prof, ext_tseries, globatt, xret, prior,
         
         sigma_sblcl = fid.createVariable('sigma_sbLCL', 'f4', ('time',))
         sigma_sblcl.long_name = '1-sigma uncertainties in the LCL for a surface-based parcel'
-        sigma_sblcl.units = dindex['units'][4]
+        sigma_sblcl.units = dindex['units'][5]
         sigma_sblcl.variable_type = varType_uncertainty
         sigma_sblcl.comment1 = 'This field is derived from the retrieved fields'
         sigma_sblcl.comment2 = 'The uncertainties were determined using a monte carlo sampling of the posterior covariance matrix'
@@ -670,7 +689,7 @@ def write_output(vip, ext_prof, mod_prof, ext_tseries, globatt, xret, prior,
         
         sigma_sbcape = fid.createVariable('sigma_sbCAPE', 'f4', ('time',))
         sigma_sbcape.long_name = '1-sigma uncertainties in surface-based CAPE'
-        sigma_sbcape.units = dindex['units'][5]
+        sigma_sbcape.units = dindex['units'][6]
         sigma_sbcape.variable_type = varType_uncertainty
         sigma_sbcape.comment1 = 'This field is derived from the retrieved fields'
         sigma_sbcape.comment2 = 'The uncertainties were determined using a monte carlo sampling of the posterior covariance matrix'
@@ -678,7 +697,7 @@ def write_output(vip, ext_prof, mod_prof, ext_tseries, globatt, xret, prior,
         
         sigma_sbcin = fid.createVariable('sigma_sbCIN', 'f4', ('time',))
         sigma_sbcin.long_name = '1-sigma uncertainties in surface-based CIN'
-        sigma_sbcin.units = dindex['units'][6]
+        sigma_sbcin.units = dindex['units'][7]
         sigma_sbcin.variable_type = varType_uncertainty
         sigma_sbcin.comment1 = 'This field is derived from the retrieved fields'
         sigma_sbcin.comment2 = 'The uncertainties were determined using a monte carlo sampling of the posterior covariance matrix'
@@ -686,7 +705,7 @@ def write_output(vip, ext_prof, mod_prof, ext_tseries, globatt, xret, prior,
         
         sigma_mllcl = fid.createVariable('sigma_mlLCL', 'f4', ('time',))
         sigma_mllcl.long_name = '1-sigma uncertainties in the LCL for a mixed-layer parcel'
-        sigma_mllcl.units = dindex['units'][7]
+        sigma_mllcl.units = dindex['units'][8]
         sigma_mllcl.variable_type = varType_uncertainty
         sigma_mllcl.comment1 = 'This field is derived from the retrieved fields'
         sigma_mllcl.comment2 = 'The uncertainties were determined using a monte carlo sampling of the posterior covariance matrix'
@@ -694,7 +713,7 @@ def write_output(vip, ext_prof, mod_prof, ext_tseries, globatt, xret, prior,
         
         sigma_mlcape = fid.createVariable('sigma_mlCAPE', 'f4', ('time',))
         sigma_mlcape.long_name = '1-sigma uncertainties in mixed-layer CAPE'
-        sigma_mlcape.units = dindex['units'][8]
+        sigma_mlcape.units = dindex['units'][9]
         sigma_mlcape.variable_type = varType_uncertainty
         sigma_mlcape.comment1 = 'This field is derived from the retrieved fields'
         sigma_mlcape.comment2 = 'The uncertainties were determined using a monte carlo sampling of the posterior covariance matrix'
@@ -702,7 +721,7 @@ def write_output(vip, ext_prof, mod_prof, ext_tseries, globatt, xret, prior,
         
         sigma_mlcin = fid.createVariable('sigma_mlCIN', 'f4', ('time',))
         sigma_mlcin.long_name = '1-sigma uncertainties in mixed-layer CIN'
-        sigma_mlcin.units = dindex['units'][9]
+        sigma_mlcin.units = dindex['units'][10]
         sigma_mlcin.variable_type = varType_uncertainty
         sigma_mlcin.comment1 = 'This field is derived from the retrieved fields'
         sigma_mlcin.comment2 = 'The uncertainties were determined using a monte carlo sampling of the posterior covariance matrix'
@@ -1033,6 +1052,7 @@ def write_output(vip, ext_prof, mod_prof, ext_tseries, globatt, xret, prior,
     n2o_profile = fid.variables['n2o_profile']
     pwv = fid.variables['pwv']
     pblh = fid.variables['pblh']
+    pblhv = fid.variables['pblhv']
     sbih = fid.variables['sbih']
     sbim = fid.variables['sbim']
     sblcl = fid.variables['sbLCL']
@@ -1044,6 +1064,7 @@ def write_output(vip, ext_prof, mod_prof, ext_tseries, globatt, xret, prior,
     
     sigma_pwv = fid.variables['sigma_pwv']
     sigma_pblh = fid.variables['sigma_pblh']
+    sigma_pblhv = fid.variables['sigma_pblhv']
     sigma_sbih = fid.variables['sigma_sbih']
     sigma_sbim = fid.variables['sigma_sbim']
     sigma_sblcl = fid.variables['sigma_sbLCL']
@@ -1139,25 +1160,27 @@ def write_output(vip, ext_prof, mod_prof, ext_tseries, globatt, xret, prior,
     
     pwv[fsample] = dindex['indices'][0]
     pblh[fsample] = dindex['indices'][1]
-    sbih[fsample] = dindex['indices'][2]
-    sbim[fsample] = dindex['indices'][3]
-    sblcl[fsample] = dindex['indices'][4]
-    sbcape[fsample] = dindex['indices'][5]
-    sbcin[fsample] = dindex['indices'][6]
-    mllcl[fsample] = dindex['indices'][7]
-    mlcape[fsample] = dindex['indices'][8]
-    mlcin[fsample] = dindex['indices'][9]
+    pblhv[fsample] = dindex['indices'][2]
+    sbih[fsample] = dindex['indices'][3]
+    sbim[fsample] = dindex['indices'][4]
+    sblcl[fsample] = dindex['indices'][5]
+    sbcape[fsample] = dindex['indices'][6]
+    sbcin[fsample] = dindex['indices'][7]
+    mllcl[fsample] = dindex['indices'][8]
+    mlcape[fsample] = dindex['indices'][9]
+    mlcin[fsample] = dindex['indices'][10]
     
     sigma_pwv[fsample] = dindex['sigma_indices'][0]
     sigma_pblh[fsample] = dindex['sigma_indices'][1]
-    sigma_sbih[fsample] = dindex['sigma_indices'][2]
-    sigma_sbim[fsample] = dindex['sigma_indices'][3]
-    sigma_sblcl[fsample] = dindex['sigma_indices'][4]
-    sigma_sbcape[fsample] = dindex['sigma_indices'][5]
-    sigma_sbcin[fsample] = dindex['sigma_indices'][6]
-    sigma_mllcl[fsample] = dindex['sigma_indices'][7]
-    sigma_mlcape[fsample] = dindex['sigma_indices'][8]
-    sigma_mlcin[fsample] = dindex['sigma_indices'][9]
+    sigma_pblhv[fsample] = dindex['sigma_indices'][2]
+    sigma_sbih[fsample] = dindex['sigma_indices'][3]
+    sigma_sbim[fsample] = dindex['sigma_indices'][4]
+    sigma_sblcl[fsample] = dindex['sigma_indices'][5]
+    sigma_sbcape[fsample] = dindex['sigma_indices'][6]
+    sigma_sbcin[fsample] = dindex['sigma_indices'][7]
+    sigma_mllcl[fsample] = dindex['sigma_indices'][8]
+    sigma_mlcape[fsample] = dindex['sigma_indices'][9]
+    sigma_mlcin[fsample] = dindex['sigma_indices'][10]
 
     obs_vector[fsample,:] = xret[fsample]['Y']
     obs_vector_uncertainty[fsample,:] = xret[fsample]['sigY']

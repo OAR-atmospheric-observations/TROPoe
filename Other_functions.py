@@ -2343,11 +2343,11 @@ def mixed_layer(t,p,wv, depth = 100):
 
 def calc_derived_indices(xret, vip, derived, verbose, do_compute, num_mc=20):
     
-    # These are the derived indices that I will compute later one. I need to
+    # These are the derived indices that I will compute later on. I need to
     # define them here in order to build the netcdf file correctly
-    dindex_name = ['pwv', 'pblh', 'sbih', 'sbim', 'sbLCL', 'sbCAPE', 'sbCIN', 
+    dindex_name = ['pwv', 'pblh', 'pblhv', 'sbih', 'sbim', 'sbLCL', 'sbCAPE', 'sbCIN', 
                    'mlLCL','mlCAPE', 'mlCIN']
-    dindex_units = ['cm', 'km', 'km', 'degC', 'km', 'J/kg', 'J/kg',
+    dindex_units = ['cm', 'km', 'km', 'km', 'degC', 'km', 'J/kg', 'J/kg',
                     'km', 'J/kg', 'J/kg']
     
     indices = np.zeros(len(dindex_name))-999.
@@ -2366,6 +2366,10 @@ def calc_derived_indices(xret, vip, derived, verbose, do_compute, num_mc=20):
     ww = np.copy(xret['Xn'][nht:2*nht])
     zz = np.copy(xret['z'])
 
+    # Compute virtual temperature from ambient temperature
+    # recognizing accounting for the units of tt [degC] and ww [g/kg]
+    tv = (tt+273.15)*(1+0.61*ww/1000.)-273.15
+
     # Extract out the posterior covariance matrix, and get the 1-sigma uncertainties
     Sop_tmp = np.copy(xret['Sop'][0:2*nht,0:2*nht])
     sig_t = np.sqrt(np.diag(Sop_tmp))[0:nht]
@@ -2378,36 +2382,38 @@ def calc_derived_indices(xret, vip, derived, verbose, do_compute, num_mc=20):
     # PBLH
     indices[1] = compute_pblh(zz, tt, pp, sig_t, minht=vip['min_PBL_height'],
                               maxht=vip['max_PBL_height'], nudge=vip['nudge_PBL_height'])
+    indices[2] = compute_pblh(zz, tv, pp, sig_t, minht=vip['min_PBL_height'],
+                              maxht=vip['max_PBL_height'], nudge=vip['nudge_PBL_height'])
     
     # SBIH & SBIM
-    indices[2], indices[3] = compute_sbi(zz,tt)
+    indices[3], indices[4] = compute_sbi(zz,tt)
     
     # sbLCL
-    indices[4], plcl = compute_lcl(tt[0],ww[0],pp[0],pp,zz)
+    indices[5], plcl = compute_lcl(tt[0],ww[0],pp[0],pp,zz)
     
     # sbCAPE, sbCIN
     # For now putting this in a try, except statment to make sure this
     # does cause TROPoe to quit if something goes wrong
     try:
-        indices[5], indices[6] = cape_cin(tt, pp, plcl)
+        indices[6], indices[7] = cape_cin(tt, pp, plcl)
     except:
         print('Something went wrong in SBCAPE and CIN calculation.')
-        indices[5] = -9999.
         indices[6] = -9999.
+        indices[7] = -9999.
     
     try:
         # Find mixed layer profiles for the ML indices. 
         mlpp, mltt, mlww = mixed_layer(tt, pp, ww)
     
         # mlLCL
-        indices[7], pmllcl = compute_lcl(mltt[0],mlww[0],mlpp[0],pp,zz)
+        indices[8], pmllcl = compute_lcl(mltt[0],mlww[0],mlpp[0],pp,zz)
     
-        indices[8], indices[9] = cape_cin(mltt,mlpp, pmllcl)
+        indices[9], indices[10] = cape_cin(mltt,mlpp, pmllcl)
     except:
         print('Something went wrong in MLCAPE and CIN calculation')
-        indices[7] = -999.
-        indices[8] = -9999.
-        indices[9] = -9999.
+        indices[8]  = -999.
+        indices[9]  = -9999.
+        indices[10] = -9999.
     
     # Only compute the uncertainties in the indices if the number of Monte Carlo 
     # samples is strictly positive; otherwise, return -9999 as the uncertainties
@@ -2468,66 +2474,70 @@ def calc_derived_indices(xret, vip, derived, verbose, do_compute, num_mc=20):
         foo = np.where(tmp_pblh > 0)[0]
         if ((len(foo) > 1) & (indices[1] > 0)):
             sigma_indices[1] = np.nanstd(indices[1]-tmp_pblh[foo])
+            sigma_indices[2] = np.nanstd(indices[1]-tmp_pblh[foo])
         else:
             sigma_indices[1] = -999.
+            sigma_indices[2] = -999.
         if ((sigma_indices[1] < vip['min_PBL_height']) & (indices[1] <= vip['min_PBL_height'])):
             sigma_indices[1] = vip['min_PBL_height']
+        if ((sigma_indices[2] < vip['min_PBL_height']) & (indices[2] <= vip['min_PBL_height'])):
+            sigma_indices[2] = vip['min_PBL_height']
     
         # SBIH
         foo = np.where(tmp_sbih > 0)[0]
-        if ((len(foo) > 1) & (indices[2] > 0)):
-            sigma_indices[2] = np.nanstd(indices[2]-tmp_sbih[foo])
-        else:
-            sigma_indices[2] = -999.
-    
-        # SBIM
-        foo = np.where(tmp_sbim > 0)[0]
         if ((len(foo) > 1) & (indices[3] > 0)):
-            sigma_indices[3] = np.nanstd(indices[3]-tmp_sbim[foo])
+            sigma_indices[3] = np.nanstd(indices[3]-tmp_sbih[foo])
         else:
             sigma_indices[3] = -999.
     
-        # LCL
-        foo = np.where(tmp_lcl > 0)[0]
+        # SBIM
+        foo = np.where(tmp_sbim > 0)[0]
         if ((len(foo) > 1) & (indices[4] > 0)):
-            sigma_indices[4] = np.nanstd(indices[4]-tmp_lcl[foo])
+            sigma_indices[4] = np.nanstd(indices[4]-tmp_sbim[foo])
         else:
             sigma_indices[4] = -999.
     
+        # LCL
+        foo = np.where(tmp_lcl > 0)[0]
+        if ((len(foo) > 1) & (indices[5] > 0)):
+            sigma_indices[5] = np.nanstd(indices[5]-tmp_lcl[foo])
+        else:
+            sigma_indices[5] = -999.
+    
         # sbCAPE
         foo = np.where(tmp_CAPE >= 0)[0]
-        if ((len(foo) > 1) & (indices[5] >= 0)):
-            sigma_indices[5] = np.nanstd(indices[5]-tmp_CAPE[foo])
-        else:
-            sigma_indices[5] = -9999.
-    
-        # sbCIN
-        foo = np.where(tmp_CIN >= -9000)[0]
-        if ((len(foo) > 1) & (indices[6] >= -9000)):
-            sigma_indices[6] = np.nanstd(indices[6]-tmp_CIN[foo])
+        if ((len(foo) > 1) & (indices[6] >= 0)):
+            sigma_indices[6] = np.nanstd(indices[6]-tmp_CAPE[foo])
         else:
             sigma_indices[6] = -9999.
     
+        # sbCIN
+        foo = np.where(tmp_CIN >= -9000)[0]
+        if ((len(foo) > 1) & (indices[7] >= -9000)):
+            sigma_indices[7] = np.nanstd(indices[7]-tmp_CIN[foo])
+        else:
+            sigma_indices[7] = -9999.
+    
         # mlLCL
         foo = np.where(tmp_mllcl > 0)[0]
-        if ((len(foo) > 1) & (indices[7] > 0)):
-            sigma_indices[7] = np.nanstd(indices[7]-tmp_mllcl[foo])
+        if ((len(foo) > 1) & (indices[8] > 0)):
+            sigma_indices[8] = np.nanstd(indices[8]-tmp_mllcl[foo])
         else:
-            sigma_indices[7] = -999.
+            sigma_indices[8] = -999.
         
         # MLCAPE
         foo = np.where(tmp_MLCAPE >= 0)[0]
-        if ((len(foo) > 1) & (indices[8] >= 0)):
-            sigma_indices[8] = np.nanstd(indices[8]-tmp_MLCAPE[foo])
+        if ((len(foo) > 1) & (indices[9] >= 0)):
+            sigma_indices[9] = np.nanstd(indices[9]-tmp_MLCAPE[foo])
         else:
-            sigma_indices[8] = -9999.
+            sigma_indices[9] = -9999.
     
         # MLCIN
         foo = np.where(tmp_CIN >= -9000)[0]
-        if ((len(foo) > 1) & (indices[9] >= -9000)):
-            sigma_indices[9] = np.nanstd(indices[9]-tmp_MLCIN[foo])
+        if ((len(foo) > 1) & (indices[10] >= -9000)):
+            sigma_indices[10] = np.nanstd(indices[10]-tmp_MLCIN[foo])
         else:
-            sigma_indices[9] = -9999.
+            sigma_indices[10] = -9999.
     
     return {'indices':indices, 'sigma_indices':sigma_indices, 'name':dindex_name,
             'units':dindex_units}
