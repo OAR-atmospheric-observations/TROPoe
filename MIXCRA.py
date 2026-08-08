@@ -329,8 +329,9 @@ while ((np.max(lhour) <= 23.8 ) and (cnt == 1)):
     lhour = tropoe['hour'][lidx]
 
 if len(tropoe['hour']) > 1:
-    lidx.append(len(tropoe['hour']) - 1)
-    lhour = tropoe['hour'][lidx]
+    if(tropoe['hour'][-1] > np.max(lhour)):
+        lidx.append(len(tropoe['hour']) - 1)
+        lhour = tropoe['hour'][lidx]
 
 if verbose >= 1:
     # Format the lhour array as comma-separated values with 2 decimal places
@@ -342,7 +343,7 @@ for i in range(len(lhour)):
     lbl = Jacobian_Functions.make_lblrtm_calc(vip,date,tropoe['hour'][lidx[i]],
                                               tropoe['co2'][lidx[i],0],tropoe['height'],
                                               tropoe['pressure'][lidx[i],:], tropoe['temperature'][lidx[i],:],
-                                              tropoe['waterVapor'][lidx[i],:], lblwnum1, lblwnum2,
+                                              tropoe['waterVapor'][lidx[i],:], tropoe['pwv'][lidx[i]], lblwnum1, lblwnum2,
                                               vip['delete_temporary'],verbose)
     
     if lbl['status'] == 0:
@@ -515,14 +516,14 @@ if vip['math_choice'] == 0:
     # If first math_choice is 0, then I will tweak the gamma factors and use Eq. 5.9
     gamm[0] = 10
     gamm[1] = 3
-
 elif vip['math_choice'] == 1:
     # If math_choice is 1, then use Eq. 5.8 with no modifications 
     foo = 0       # This does nothing as intended
 elif vip['math_choice'] == 2:
     # If math_choice is 2, then use Eq 5.8 with annealing
-    sfactor[0] = 0.3
-    sfactor[1] = 0.7
+    if((vip['annealing_step'] <= 0) | (1 < vip['annealing_step'])):
+        print('Error -- VIP.annealing_step must be in (0,1] -- aborting')
+        sys.exit()
 else:
     print('Error -- undefined math_choice in the VIP file -- aborting')
     sys.exit()
@@ -679,6 +680,9 @@ for samp in range(foo[0],len(irs['secs']),step):
     if verbose >= 1:
         print('   Iter     lTau   lReff    iTau   iReff       RMS         di2m  sfactor')
     
+        # Select the correct TROPoe index run to use for this sample time
+    delt = np.abs(tropoe['hour']-irs['hour'][samp])
+    sidx = np.where(delt == np.min(delt))[0][0]
         # Select the correct LBLRTM run to use for this sample time
     delt = np.abs(lhour-irs['hour'][samp])
     tidx = np.where(delt == np.min(delt))[0][0]
@@ -690,8 +694,14 @@ for samp in range(foo[0],len(irs['secs']),step):
     if isza >= 82:
         isza = -1
         
+    # Set this to unity before we start the iterations (only used if vip['math_choice'] == 2)
+    anneal_step = 1.0
+
     # Now perfrom the iterations
     while((itern < vip['maxiter']-1) and (conv == 0)):
+        # Capture the total optical depth
+        total_tau = Xn[0]+Xn[1]
+
         # Check to make sure the spectral range spanned by the TAPE3 is sufficient
         if(tape3_info['success'] < 0):
             tmplbldir = f'{lblout[tidx]:s}'
@@ -763,7 +773,7 @@ for samp in range(foo[0],len(irs['secs']),step):
                 # Run the forward model and compute the Jacobian
             tmp_lQext_ratio = 2. / Other_functions.get_scat_properties('Qe', d_ref_wnum, Xn[1], sspl)
             flag, KK, FF, stored_mwr_jacobian = Jacobian_Functions.compute_jacobian_microwave_lwp_only(tropoe['height'],
-                            tropoe['pressure'][lidx[tidx],:],tropoe['temperature'][lidx[tidx],:],tropoe['waterVapor'][lidx[tidx],:],
+                            tropoe['pressure'][sidx,:],tropoe['temperature'][sidx,:],tropoe['waterVapor'][sidx,:],
                             mwr['freq'], cbh, Xn, tmp_lQext_ratio, vip, vip['workdir'], monortm_tfile, monortm_zexec,
                             vip['lbl_std_atmos'], location['alt'], stored_mwr_jacobian, verbose)
 
@@ -810,7 +820,13 @@ for samp in range(foo[0],len(irs['secs']),step):
         if vip['math_choice'] == 0:
             Xnp1 = Xa[:,None] + Gain.dot(Y[:,None] - FXn[:,None] + Kij.dot((Xn-Xa)[:,None]))
         else:
-            Xnp1 = Xn[:,None] + sfac*Binv.dot(Kij.T.dot(invSm).dot(Y[:,None] - FXn[:,None])-invSa.dot((Xn-Xa)[:,None]))
+            innovation = Binv.dot(Kij.T.dot(invSm).dot(Y[:,None] - FXn[:,None])-invSa.dot((Xn-Xa)[:,None]))
+            if(vip['math_choice'] == 2):
+                if((sfactor[itern] >= 1) & (itern > 0)):
+                    if(total_tau > vip['annealing_min_tau']):
+                        anneal_step = anneal_step * vip['annealing_step']
+                        sfac = anneal_step
+            Xnp1 = Xn[:,None] + sfac*innovation
         Xnp1 = np.squeeze(Xnp1)
 
         Sop = Binv.dot(gfac*gfac*invSa + Kij.T.dot(invSm).dot(Kij)).dot(Binv)
@@ -821,7 +837,7 @@ for samp in range(foo[0],len(irs['secs']),step):
         di2m = ((FXn[:,None] - FXnm1[:,None]).T.dot(
                 np.linalg.pinv(Kij.dot(Sop).dot(Kij.T)+Sm)).dot(
                 FXn[:,None] - FXnm1[:,None]))[0,0]
-        if((di2m < vip['converge_factor']*len(Y)) and (sfac >= 0.99)):
+        if((di2m < vip['converge_factor']*len(Y)) and (sfactor[itern] >= 0.99)):
             conv = 1
         
         # Capture all of the results for this iteration
