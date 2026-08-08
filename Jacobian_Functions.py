@@ -2114,7 +2114,7 @@ def compute_jacobian_microwavescan_3method(Xn, p, z, mwrscan, cbh, vip, workdir,
 # variables, reads in the gaseous optical depths, and returns the structure
 ##################################################################################
 
-def make_lblrtm_calc(vip, ymd, hour, co2, z, p, t, w, wnum1,wnum2,delt,verbose):
+def make_lblrtm_calc(vip, ymd, hour, co2, z, p, t, w, pwv, wnum1, wnum2, delt, verbose):
 
     err = {'status':0}
     if verbose >-2:
@@ -2175,7 +2175,7 @@ def make_lblrtm_calc(vip, ymd, hour, co2, z, p, t, w, wnum1,wnum2,delt,verbose):
             print(stdout)
         return err
     
-    return {'status':1,'ymd':ymd,'hour':hour,'filename':out}
+    return {'status':1, 'ymd':ymd, 'hour':hour, 'filename':out, 'pwv':pwv}
 
 ############################################################################################
 # This routine runs the LBLDIS as the forward model.
