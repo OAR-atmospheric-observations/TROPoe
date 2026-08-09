@@ -15,6 +15,7 @@ import os
 import sys
 import numpy as np
 import struct
+import errno
 from pathlib import Path
 from subprocess import Popen, PIPE
 
@@ -524,12 +525,25 @@ def rundecker(model, aprofile, z, p, t, w, co2_profile= None, o3_profile=None,
         rec_1_2 = '    1    0    1    0    1    0    0    1    0    1         0    0    0    0    0    1'
     
     # Get the date for the default comment string
-    with Popen('date', stdout = PIPE, stderr = PIPE, shell=True, executable = '/bin/csh') as process:
-        try:
+    # Logic to catch various errors that could occur when we spawn to the environment
+    try:
+        with Popen('date', stdout = PIPE, stderr = PIPE, shell=True, executable = '/bin/csh') as process:
             stdout, stderr = process.communicate()
-        except Exception as e:
-            print('Problem in rundecker -- stopping')
-            sys.exit()
+        # Catches failures occurring during process creation
+    except OSError as e:
+        if e.errno == errno.EAGAIN:
+            print("Popen error with rundecker: Out of PIDs or process limit reached (EAGAIN).")
+        elif e.errno == errno.ENOMEM:
+            print("Popen error with rundecker: Out of system memory (ENOMEM).")
+        elif isinstance(e, FileNotFoundError):
+            print("Popen error with rundecker: C-shell executable '/bin/csh' was not found.")
+        else:
+            print(f"Popen OS error with rundecker ({e.errno}): {e.strerror}")
+        sys.exit()
+        # Catches non-OS exceptions (e.g., KeyboardInterrupt or I/O errors during communication)
+    except Exception as e:
+        print(f"Unexpected error running rundecker: {e}")
+        sys.exit()
     date = stdout[:-1].decode()
     
     # Get the proper output filename
@@ -1543,12 +1557,30 @@ def run_monortm(command, freq, z, stdatmos, outputfile):
     
     # Run the command
     newcommand = '('+command+') >& /dev/null'
-    with Popen(newcommand, shell=True, executable = '/bin/csh') as process:
-        try:
+    # Logic to catch various errors that could occur when we spawn off the Monortm runs
+    try:
+        with Popen(newcommand, stdout=PIPE, stderr=PIPE, shell=True, executable = '/bin/csh') as process:
             stdout, stderr = process.communicate()
-        except Exception as e:
-            print('Problem in run_monortm call (1)')
-            return error
+                # Catch cases where the process launched, but Monortm exited with an error
+            if process.returncode != 0:
+                print(f"Monortm execution failed with exit code {process.returncode}")
+                print(f"Stderr output: {stderr.decode('utf-8', errors='replace')}")
+                return error
+        # Catches failures occurring during process creation
+    except OSError as e:
+        if e.errno == errno.EAGAIN:
+            print("Popen error with Monortm: Out of PIDs or process limit reached (EAGAIN).")
+        elif e.errno == errno.ENOMEM:
+            print("Popen error with Monortm: Out of system memory (ENOMEM).")
+        elif isinstance(e, FileNotFoundError):
+            print("Popen error with Monortm: C-shell executable '/bin/csh' was not found.")
+        else:
+            print(f"Popen OS error with Monortm ({e.errno}): {e.strerror}")
+        return error
+        # Catches non-OS exceptions (e.g., KeyboardInterrupt or I/O errors during communication)
+    except Exception as e:
+        print(f"Unexpected error running Monortm: {e}")
+        return error
 
     # Make sure the model created an output file; if not, the return error
     file_path = Path(outputfile)

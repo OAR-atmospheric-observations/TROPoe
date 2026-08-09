@@ -15,6 +15,7 @@ import numpy as np
 import os
 import glob
 import scipy
+import errno
 from datetime import datetime
 from subprocess import Popen, PIPE
 from netCDF4 import Dataset
@@ -247,12 +248,30 @@ def compute_jacobian_irs_interpol(X, p, zz, lblhome, lbldir, lblroot, lbl_std_at
     if append_devnull:
         command = (command + ' >& /dev/null')
 
-    with Popen(command, stdout = PIPE, stderr = PIPE, shell=True, executable = '/bin/csh') as process:
-        try:
+    # Logic to catch various errors that could occur when we spawn off the LBLRTM runs
+    try:
+        with Popen(command, stdout = PIPE, stderr = PIPE, shell=True, executable = '/bin/csh') as process:
             stdout, stderr = process.communicate()
-        except Exception as e:
-            print('Popen error with LBLRTM (1)')
-            return success, -999., -999., -999., -999., -999., tape3_info
+                # Catch cases where the process launched, but LBLRTM exited with an error
+            if process.returncode != 0:
+                print(f"LBLRTM execution (1) failed with exit code {process.returncode}")
+                print(f"Stderr output: {stderr.decode('utf-8', errors='replace')}")
+                return success, -999., -999., -999., -999., -999., tape3_info
+        # Catches failures occurring during process creation
+    except OSError as e:
+        if e.errno == errno.EAGAIN:
+            print("Popen error with LBLRTM: Out of PIDs or process limit reached (EAGAIN).")
+        elif e.errno == errno.ENOMEM:
+            print("Popen error with LBLRTM: Out of system memory (ENOMEM).")
+        elif isinstance(e, FileNotFoundError):
+            print("Popen error with LBLRTM: C-shell executable '/bin/csh' was not found.")
+        else:
+            print(f"Popen OS error with LBLRTM ({e.errno}): {e.strerror}")
+        return success, -999., -999., -999., -999., -999., tape3_info
+        # Catches non-OS exceptions (e.g., KeyboardInterrupt or I/O errors during communication)
+    except Exception as e:
+        print(f"Unexpected error running LBLRTM: {e}")
+        return success, -999., -999., -999., -999., -999., tape3_info
 
     # Now read in the baseline optical depths
     files1 = []
@@ -2158,13 +2177,31 @@ def make_lblrtm_calc(vip, ymd, hour, co2, z, p, t, w, pwv, wnum1, wnum2, delt, v
                     'setenv LBL_HOME ' + vip['lblrtm_home'] + ' ; '+
                     '$LBL_HOME/bin/lblrun ' + tp5 + ' ' + out + ' ' + vip['lbl_tape3'])
         
-        with Popen(command, stdout = PIPE, stderr = PIPE, shell=True, executable = '/bin/csh') as process:
-            try:
+        # Logic to catch various errors that could occur when we spawn off the LBLRTM runs
+        try:
+            with Popen(command, stdout = PIPE, stderr = PIPE, shell=True, executable = '/bin/csh') as process:
                 stdout, stderr = process.communicate()
-            except Exception as e:
-                print('Popen error with LBLRTM (2)')
-                return err
-    
+                    # Catch cases where the process launched, but LBLRTM exited with an error
+                if process.returncode != 0:
+                    print(f"LBLRTM execution (2) failed with exit code {process.returncode}")
+                    print(f"Stderr output: {stderr.decode('utf-8', errors='replace')}")
+                    return err
+            # Catches failures occurring during process creation
+        except OSError as e:
+            if e.errno == errno.EAGAIN:
+                print("Popen error with LBLRTM: Out of PIDs or process limit reached (EAGAIN).")
+            elif e.errno == errno.ENOMEM:
+                print("Popen error with LBLRTM: Out of system memory (ENOMEM).")
+            elif isinstance(e, FileNotFoundError):
+                print("Popen error with LBLRTM: C-shell executable '/bin/csh' was not found.")
+            else:
+                print(f"Popen OS error with LBLRTM ({e.errno}): {e.strerror}")
+            return err
+            # Catches non-OS exceptions (e.g., KeyboardInterrupt or I/O errors during communication)
+        except Exception as e:
+            print(f"Unexpected error running LBLRTM: {e}")
+            return err
+
     # Confirm tha the LBLRTM ran properly
     odfiles = []
     odfiles = odfiles + sorted(glob.glob(out+'/OD*'))
@@ -2228,12 +2265,30 @@ def mixcra_forward_model(Xn, z, lblout, lwc, vip, jday, sza, sfc_emissivity, ref
                                            ltau, itau, vip, lblout, sfc_emissivity, ref_wnum)
     
     # Now run the RT model
-    with Popen(command, stdout = PIPE, stderr = PIPE, shell=True, executable = '/bin/csh') as process:
-        try:
+    # Logic to catch various errors that could occur when we spawn off the LBLRTM runs
+    try:
+        with Popen(command, stdout = PIPE, stderr = PIPE, shell=True, executable = '/bin/csh') as process:
             stdout, stderr = process.communicate()
-        except Exception as e:
-            print('Popen error with LBLDIS (1)')
-            return err, -999, -999
+                # Catch cases where the process launched, but LBLRTM exited with an error
+            if process.returncode != 0:
+                print(f"LBLRTM execution (3) failed with exit code {process.returncode}")
+                print(f"Stderr output: {stderr.decode('utf-8', errors='replace')}")
+                return err, -999, -999
+        # Catches failures occurring during process creation
+    except OSError as e:
+        if e.errno == errno.EAGAIN:
+            print("Popen error with LBLRTM: Out of PIDs or process limit reached (EAGAIN).")
+        elif e.errno == errno.ENOMEM:
+            print("Popen error with LBLRTM: Out of system memory (ENOMEM).")
+        elif isinstance(e, FileNotFoundError):
+            print("Popen error with LBLRTM: C-shell executable '/bin/csh' was not found.")
+        else:
+            print(f"Popen OS error with LBLRTM ({e.errno}): {e.strerror}")
+        return err, -999, -999
+        # Catches non-OS exceptions (e.g., KeyboardInterrupt or I/O errors during communication)
+    except Exception as e:
+        print(f"Unexpected error running LBLRTM: {e}")
+        return err, -999, -999
 
     # Now read in the output data
     fid = Dataset(ofile + '.cdf')
@@ -2270,12 +2325,30 @@ def mixcra_forward_model(Xn, z, lblout, lwc, vip, jday, sza, sfc_emissivity, ref
                                            plod, itau, vip, lblout, sfc_emissivity, ref_wnum)
 
         # Now run the RT model
-        with Popen(command, stdout = PIPE, stderr = PIPE, shell=True, executable = '/bin/csh') as process:
-            try:
+        # Logic to catch various errors that could occur when we spawn off the LBLRTM runs
+        try:
+            with Popen(command, stdout = PIPE, stderr = PIPE, shell=True, executable = '/bin/csh') as process:
                 stdout, stderr = process.communicate()
-            except Exception as e:
-                print('Popen error with LBLDIS (2)')
-                return err, -999, -999
+                    # Catch cases where the process launched, but LBLRTM exited with an error
+                if process.returncode != 0:
+                    print(f"LBLRTM execution (4) failed with exit code {process.returncode}")
+                    print(f"Stderr output: {stderr.decode('utf-8', errors='replace')}")
+                    return err, -999, -999
+            # Catches failures occurring during process creation
+        except OSError as e:
+            if e.errno == errno.EAGAIN:
+                print("Popen error with LBLRTM: Out of PIDs or process limit reached (EAGAIN).")
+            elif e.errno == errno.ENOMEM:
+                print("Popen error with LBLRTM: Out of system memory (ENOMEM).")
+            elif isinstance(e, FileNotFoundError):
+                print("Popen error with LBLRTM: C-shell executable '/bin/csh' was not found.")
+            else:
+                print(f"Popen OS error with LBLRTM ({e.errno}): {e.strerror}")
+            return err, -999, -999
+            # Catches non-OS exceptions (e.g., KeyboardInterrupt or I/O errors during communication)
+        except Exception as e:
+            print(f"Unexpected error running LBLRTM: {e}")
+            return err, -999, -999
 
         fid = Dataset(ofile + '.cdf')
         prad = np.squeeze(fid.variables['radiance'][:])
@@ -2293,12 +2366,30 @@ def mixcra_forward_model(Xn, z, lblout, lwc, vip, jday, sza, sfc_emissivity, ref
                                            ltau, itau, vip, lblout, sfc_emissivity, ref_wnum)
         
             # Now run the RT model
-            with Popen(command, stdout = PIPE, stderr = PIPE, shell=True, executable = '/bin/csh') as process:
-                try:
+            # Logic to catch various errors that could occur when we spawn off the LBLRTM runs
+            try:
+                with Popen(command, stdout = PIPE, stderr = PIPE, shell=True, executable = '/bin/csh') as process:
                     stdout, stderr = process.communicate()
-                except Exception as e:
-                    print('Popen error with LBLDIS (3)')
-                    return err, -999, -999
+                        # Catch cases where the process launched, but LBLRTM exited with an error
+                    if process.returncode != 0:
+                        print(f"LBLRTM execution (5) failed with exit code {process.returncode}")
+                        print(f"Stderr output: {stderr.decode('utf-8', errors='replace')}")
+                        return err, -999, -999
+                # Catches failures occurring during process creation
+            except OSError as e:
+                if e.errno == errno.EAGAIN:
+                    print("Popen error with LBLRTM: Out of PIDs or process limit reached (EAGAIN).")
+                elif e.errno == errno.ENOMEM:
+                    print("Popen error with LBLRTM: Out of system memory (ENOMEM).")
+                elif isinstance(e, FileNotFoundError):
+                    print("Popen error with LBLRTM: C-shell executable '/bin/csh' was not found.")
+                else:
+                    print(f"Popen OS error with LBLRTM ({e.errno}): {e.strerror}")
+                return err, -999, -999
+                # Catches non-OS exceptions (e.g., KeyboardInterrupt or I/O errors during communication)
+            except Exception as e:
+                print(f"Unexpected error running LBLRTM: {e}")
+                return err, -999, -999
 
             fid = Dataset(ofile + '.cdf')
             prad = np.squeeze(fid.variables['radiance'][:])
@@ -2324,12 +2415,30 @@ def mixcra_forward_model(Xn, z, lblout, lwc, vip, jday, sza, sfc_emissivity, ref
                                            ltau, piod, vip, lblout, sfc_emissivity, ref_wnum)
 
         # Now run the RT model
-        with Popen(command, stdout = PIPE, stderr = PIPE, shell=True, executable = '/bin/csh') as process:
-            try:
+        # Logic to catch various errors that could occur when we spawn off the LBLRTM runs
+        try:
+            with Popen(command, stdout = PIPE, stderr = PIPE, shell=True, executable = '/bin/csh') as process:
                 stdout, stderr = process.communicate()
-            except Exception as e:
-                print('Popen error with LBLDIS (4)')
-                return err, -999, -999
+                    # Catch cases where the process launched, but LBLRTM exited with an error
+                if process.returncode != 0:
+                    print(f"LBLRTM execution (6) failed with exit code {process.returncode}")
+                    print(f"Stderr output: {stderr.decode('utf-8', errors='replace')}")
+                    return err, -999, -999
+            # Catches failures occurring during process creation
+        except OSError as e:
+            if e.errno == errno.EAGAIN:
+                print("Popen error with LBLRTM: Out of PIDs or process limit reached (EAGAIN).")
+            elif e.errno == errno.ENOMEM:
+                print("Popen error with LBLRTM: Out of system memory (ENOMEM).")
+            elif isinstance(e, FileNotFoundError):
+                print("Popen error with LBLRTM: C-shell executable '/bin/csh' was not found.")
+            else:
+                print(f"Popen OS error with LBLRTM ({e.errno}): {e.strerror}")
+            return err, -999, -999
+            # Catches non-OS exceptions (e.g., KeyboardInterrupt or I/O errors during communication)
+        except Exception as e:
+            print(f"Unexpected error running LBLRTM: {e}")
+            return err, -999, -999
 
         fid = Dataset(ofile + '.cdf')
         prad = np.squeeze(fid.variables['radiance'][:])
@@ -2347,12 +2456,30 @@ def mixcra_forward_model(Xn, z, lblout, lwc, vip, jday, sza, sfc_emissivity, ref
                                            ltau, itau, vip, lblout, sfc_emissivity, ref_wnum)
         
             # Now run the RT model
-            with Popen(command, stdout = PIPE, stderr = PIPE, shell=True, executable = '/bin/csh') as process:
-                try:
+            # Logic to catch various errors that could occur when we spawn off the LBLRTM runs
+            try:
+                with Popen(command, stdout = PIPE, stderr = PIPE, shell=True, executable = '/bin/csh') as process:
                     stdout, stderr = process.communicate()
-                except Exception as e:
-                    print('Popen error with LBLDIS (5)')
-                    return err, -999, -999
+                        # Catch cases where the process launched, but LBLRTM exited with an error
+                    if process.returncode != 0:
+                        print(f"LBLRTM execution (7) failed with exit code {process.returncode}")
+                        print(f"Stderr output: {stderr.decode('utf-8', errors='replace')}")
+                        return err, -999, -999
+                # Catches failures occurring during process creation
+            except OSError as e:
+                if e.errno == errno.EAGAIN:
+                    print("Popen error with LBLRTM: Out of PIDs or process limit reached (EAGAIN).")
+                elif e.errno == errno.ENOMEM:
+                    print("Popen error with LBLRTM: Out of system memory (ENOMEM).")
+                elif isinstance(e, FileNotFoundError):
+                    print("Popen error with LBLRTM: C-shell executable '/bin/csh' was not found.")
+                else:
+                    print(f"Popen OS error with LBLRTM ({e.errno}): {e.strerror}")
+                return err, -999, -999
+                # Catches non-OS exceptions (e.g., KeyboardInterrupt or I/O errors during communication)
+            except Exception as e:
+                print(f"Unexpected error running LBLRTM: {e}")
+                return err, -999, -999
 
             fid = Dataset(ofile + '.cdf')
             prad = np.squeeze(fid.variables['radiance'][:])
