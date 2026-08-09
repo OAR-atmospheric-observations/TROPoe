@@ -2595,8 +2595,9 @@ def grid_mwr(mwr, avg_instant, secs, tavg, time_delta, verbose):
                 'type':mwr['type'], 'rootname':'none found', 'alt':-1}
 
     # If the time_delta [hours] is lower than tavg [min], then warn the user
-    if time_delta/60. < tavg:
-        print('    WARNING: mwr_time_delta is smaller than Tavg; consider resetting it in the VIP file to a larger value')
+    if time_delta*60. < tavg:
+        print('    WARNING: VIP.mwr_time_delta is smaller than VIP.tres; resetting it to the larger value')
+        time_delta = tavg / 60.
 
     # Now directly specifying the time for the full-width averaging window
     twin = time_delta*60*2  # Need twin to have units of minutes
@@ -4072,6 +4073,9 @@ def read_external_timeseries(date, secs, vip, dostop, verbose):
         # Now read in the pressure field, as specified by the VIP file
         if len(np.where(np.array(list(fid.variables.keys())) == vip['ext_sfc_pres_fieldname'])[0]) > 0:
             p = fid.variables[vip['ext_sfc_pres_fieldname']][:].astype('float')
+            foo = np.where(np.isnan(p))[0]
+            if(len(foo) > 0):
+                p[foo] = np.nan
             if vip['ext_sfc_pres_units'] == 1:
                 p *= 10.                        # Convert kPa to hPa
             elif vip['ext_sfc_pres_units'] == 2:
@@ -4086,11 +4090,14 @@ def read_external_timeseries(date, secs, vip, dostop, verbose):
         else:
             print('    Problem reading the external met pressure data -- the field ',
                             vip['ext_sfc_pres_fieldname'],' does not exist')
-            p = np.ones(len(to))*(-999.)
+            p = np.ones(len(to))*np.nan
 
         # Now read in the temperature field, as specified by the VIP file
         if len(np.where(np.array(list(fid.variables.keys())) == vip['ext_sfc_temp_fieldname'])[0]) > 0:
             t = fid.variables[vip['ext_sfc_temp_fieldname']][:].astype('float')
+            foo = np.where(np.isnan(t))[0]
+            if(len(foo) > 0):
+                t[foo] = np.nan
             if vip['ext_sfc_temp_units'] == 1:
                 t +=  0.                        # Do nothing (units are correct in degC)
             elif vip['ext_sfc_temp_units'] == 2:
@@ -4103,11 +4110,14 @@ def read_external_timeseries(date, secs, vip, dostop, verbose):
         else:
             print('    Problem reading the external met temperature data -- the field ',
                             vip['ext_sfc_temp_fieldname'],' does not exist')
-            t = np.ones(len(to))*(-999.)
+            t = np.ones(len(to))*np.nan
 
         # Now read in the water vapor (relative humidity) field, as specified by the VIP file
         if len(np.where(np.array(list(fid.variables.keys())) == vip['ext_sfc_wv_fieldname'])[0]) > 0:
             u = fid.variables[vip['ext_sfc_wv_fieldname']][:].astype('float')
+            foo = np.where(np.isnan(u))[0]
+            if(len(foo) > 0):
+                u[foo] = np.nan
             if vip['ext_sfc_wv_units'] == 1:
                 u +=  0.                        # Do nothing (units are correct in %rh)
             elif vip['ext_sfc_wv_units'] == 2:
@@ -4120,7 +4130,7 @@ def read_external_timeseries(date, secs, vip, dostop, verbose):
         else:
             print('    Problem reading the external met water vapor (RH) data -- the field ',
                             vip['ext_sfc_wv_fieldname'],' does not exist')
-            u = np.ones(len(to))*(-999.)
+            u = np.ones(len(to))*np.nan
 
         # Now close the file being read
         fid.close()
@@ -4133,24 +4143,24 @@ def read_external_timeseries(date, secs, vip, dostop, verbose):
 
         # Check if any variable is completely missing
         is_missing = lambda x: set(x) == set(np.array([-999.]))
-        if is_missing(p) | is_missing(t) | is_missing(u):
-            print("    Error: If using any surface data, then ext_sfc_pres_fieldname, ext_sfc_temp_fieldname,  \n" +
-                  "      and ext_sfc_wv_fieldname must point to real variables with non-missing data within \n" + 
-                  "      the file (even if they are not being used in the retrieval)")
-            return external
+#        if is_missing(p) | is_missing(t) | is_missing(u):
+#            print("    Error: If using any surface data, then ext_sfc_pres_fieldname, ext_sfc_temp_fieldname,  \n" +
+#                  "      and ext_sfc_wv_fieldname must point to real variables with non-missing data within \n" + 
+#                  "      the file (even if they are not being used in the retrieval)")
+#            return external
         
         # Do some checks to see if the units are anywhere close
-        foo = np.where((p < 300) | (p > 1050))[0]   # these are generous thresholds for pres in the trop [mb]
+        foo = np.where((~np.isnan(p)) & ((p < 300) | (p > 1050)))[0]   # these are generous thresholds for pres in the trop [mb]
         if len(foo) == len(p):
             print("    Possible Units Error: all external surface pressure values are outside (300,1050) mb",
                             "-- check units in VIP file")
             sys.exit(1)
-        foo = np.where((t < -100) | (t > 200))[0]   # these are generous thresholds for temp in the trop [degC]
+        foo = np.where((~np.isnan(t)) & ((t < -100) | (t > 200)))[0]   # these are generous thresholds for temp in the trop [degC]
         if len(foo) == len(t):
             print("    Possible Units Error: all external surface temperature values are outside (-100,200) degC",
                             "-- check units in VIP file")
             sys.exit(1)
-        foo = np.where((u < 1) | (u > 105))[0]   # these are generous thresholds for RH in the trop [%]
+        foo = np.where((~np.isnan(u)) & ((u < 1) | (u > 105)))[0]   # these are generous thresholds for RH in the trop [%]
         if len(foo) == len(u):
             print("    Possible Units Error: all external surface RH values are outside (1,105) %RH",
                             "-- check units in VIP file")
@@ -4159,13 +4169,12 @@ def read_external_timeseries(date, secs, vip, dostop, verbose):
             # Some simple QC for pressure (find any bad points)
         foo = np.where((p > 0) & (p < 1050))[0]
         if len(foo) < 1:
-            print("    External Pressure QC: all values fall outside (0, 1050)",
-                                f"-- Skipping {files[i]}")
-            continue
-        to = to[foo]
-        p  = p[foo]
-        t  = t[foo]
-        u  = u[foo]
+            print("  External surface Pressure QC: all values fall outside (0, 1050)")
+        else:
+            to = to[foo]
+            p  = p[foo]
+            t  = t[foo]
+            u  = u[foo]
 
             # Append the pressure data to the growning structure
         if external['nPsfc'] <= 0:
@@ -4179,13 +4188,12 @@ def read_external_timeseries(date, secs, vip, dostop, verbose):
             # Some simple QC for temperature (find any bad points; this adds to previous QC on pres)
         foo = np.where((t < 70) & (-100 < t))[0]
         if len(foo) < 1:
-            print("    External Temp QC: all values fall outside (-100, 70)",
-                                f"-- Skipping {files[i]}")
-            continue
-        to = to[foo]
-        p  = p[foo]
-        t  = t[foo]
-        u  = u[foo]
+            print("  External surface Temp QC: all values fall outside (-100, 70)")
+        else:
+            to = to[foo]
+            p  = p[foo]
+            t  = t[foo]
+            u  = u[foo]
 
             # Append the temperature data to the growing structure
         sigma_t = vip['ext_sfc_temp_random_error']
@@ -4202,13 +4210,12 @@ def read_external_timeseries(date, secs, vip, dostop, verbose):
             # Some simple QC for water vapor (find any bad points; this adds to previous QC on pres and temp)
         foo = np.where((u >= 0) & (u < 103))[0]
         if len(foo) < 1:
-            print("    External RH QC: all values fall outside (0, 103)",
-                                f"-- Skipping {files[i]}")
-            continue
-        to = to[foo]
-        p  = p[foo]
-        t  = t[foo]
-        u  = u[foo]
+            print("  External surface RH QC: all values fall outside (0, 103)")
+        else:
+            to = to[foo]
+            p  = p[foo]
+            t  = t[foo]
+            u  = u[foo]
 
             # Convert surface RH to surface WVMR, and compute its random uncertainty
         sigma_u = vip['ext_sfc_rh_random_error']       # %RH
@@ -4288,8 +4295,8 @@ def read_external_timeseries(date, secs, vip, dostop, verbose):
             for i in range(len(secs)):
                 foo = np.where((secs[i]-vip['tres']*60/2. <= tsecs) & (tsecs <= secs[i] + vip['tres']*60/2.))[0]
                 if len(foo) > 0:
-                    tt0[i] = np.nanmean(temp[foo])
-                    st0[i] = np.nanmean(stemp[foo])
+                    tt0[i] = np.nan if np.isnan(temp[foo]).all()  else np.nanmean(temp[foo])
+                    st0[i] = np.nan if np.isnan(stemp[foo]).all() else np.nanmean(stemp[foo])
                 else:
                     tt0[i] = -999.
                     st0[i] = -999.
@@ -4318,7 +4325,7 @@ def read_external_timeseries(date, secs, vip, dostop, verbose):
                 st0[foo] = stemp[n]
     else:
         tt0 = -999.
-        st0 = -999
+        st0 = -999.
 
     if external['nQsfc'] > 0:
         # Compute the median time interval between Tsfc measurements [minutes]
@@ -4334,8 +4341,8 @@ def read_external_timeseries(date, secs, vip, dostop, verbose):
             for i in range(len(secs)):
                 foo = np.where((secs[i]-vip['tres']*60/2. <= qsecs) & (qsecs <= secs[i] + vip['tres']*60/2.))[0]
                 if len(foo) > 0:
-                    qq0[i] = np.nanmean(wv[foo])
-                    sq0[i] = np.nanmean(swv[foo])
+                    qq0[i] = np.nan if np.isnan(wv[foo]).all()  else np.nanmean(wv[foo])
+                    sq0[i] = np.nan if np.isnan(swv[foo]).all() else np.nanmean(swv[foo])
                 else:
                     qq0[i] = -999.
                     sq0[i] = -999.
@@ -4378,7 +4385,7 @@ def read_external_timeseries(date, secs, vip, dostop, verbose):
             for i in range(len(secs)):
                 foo = np.where((secs[i]-vip['tres']*60/2. <= psecs) & (psecs <= secs[i] + vip['tres']*60/2.))[0]
                 if len(foo) > 0:
-                    p0[i] = np.nanmean(press[foo])
+                    p0[i] = np.nan if np.isnan(press[foo]).all()  else np.nanmean(press[foo])
                 else:
                     p0[i] = -999.
         else:
@@ -4554,8 +4561,20 @@ def read_external_timeseries(date, secs, vip, dostop, verbose):
         cco2a = np.copy(cco2)
         scco2a = np.copy(scco2)
 
-    # Build the output structure and return it
+    # Trap for NaNs in the met datasets
+    foo = np.where(np.isnan(tt1))[0]
+    if(len(foo) > 0):
+        tt1[foo] = -999;
+        st1[foo] = -999;
+    foo = np.where(np.isnan(qq1))[0]
+    if(len(foo) > 0):
+        qq1[foo] = -999;
+        sq1[foo] = -999;
+    foo = np.where(np.isnan(p0))[0]
+    if(len(foo) > 0):
+        p0[foo] = -999;
 
+    # Build the output structure and return it
     external = {'success':1, 'sfc_relative_height':vip['ext_sfc_relative_height'],
           'nTsfc':external['nTsfc'],'nptsT':vip['ext_sfc_temp_npts'], 'tunit':tunit, 'ttype':ttype,
           'temp':tt1, 'stemp':st1, 'nQsfc':external['nQsfc'], 'nptsQ':vip['ext_sfc_wv_npts'], 'qunit':qunit,
