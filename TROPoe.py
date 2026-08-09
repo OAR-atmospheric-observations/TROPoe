@@ -583,13 +583,20 @@ if ext_tseries['success'] != 1:
     sys.exit()
 
 # If the surface pressure field is all negative, then use the default station_pres from the VIP file
-foo = np.where((irs['atmos_pres'][:] < 200) | (irs['atmos_pres'][:] > 1200))[0]
-if(len(foo) > 0):
-    print('    Warning: changing the surface pressure of some samples to the default "station_pres" in the VIP file')
+foo = np.where((irs['atmos_pres'][:] < vip['station_psfc_min']) | (irs['atmos_pres'][:] > vip['station_psfc_max']))[0]
+if(len(foo) == len(irs['atmos_pres'])):
+    print('    Warning: changing the surface pressure of all samples to the default "station_pres" in the VIP file')
     if(vip['station_pres'] < 0):
         print('    Error: the keyword "station_pres" must be set to a positive value (in mb) in the VIP file')
         sys.exit()
     irs['atmos_pres'][foo] = vip['station_pres']
+else:
+        # But if there are only gaps in the surface pressure data, then
+        # interpolate over those gaps.  But do not extrapolate
+    foo = np.where((vip['station_psfc_min'] <= irs['atmos_pres'][:]) & (irs['atmos_pres'][:] <= vip['station_psfc_max']))[0]
+    irs['atmos_pres'][:] = np.interp(irs['hour'][:],irs['hour'][foo],irs['atmos_pres'][foo])
+    irs['atmos_pres'][0:foo[0]]   = irs['atmos_pres'][foo[0]]
+    irs['atmos_pres'][foo[-1]:-1] = irs['atmos_pres'][foo[-1]]
 
 # Capture the lat/lon/alt data in a structure.  Use the VIP supplied data
 location = {'lat':vip['station_lat'], 'lon':vip['station_lon'], 'alt':int(vip['station_alt'])}
@@ -833,7 +840,7 @@ for i in range(len(irs['secs'])):                        # { loop_i
 
     # See if we want to use the external sfc pressure instead of irs pressure
     # and check to make sure external data read went okay
-    if ((vip['ext_sfc_pres_type'] > 0) & (ext_tseries['nPsfc'] >= 0)):
+    if ((vip['ext_sfc_pres_type'] > 0) & (ext_tseries['nPsfc'] >= 0) & (ext_tseries['psfc'][i] > vip['station_psfc_min'])):
         print("    Replacing pressure with " +  ext_tseries['ptype'] + " pressure")
         irs['atmos_pres'][i] = ext_tseries['psfc'][i]
 
