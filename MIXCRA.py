@@ -658,7 +658,7 @@ for samp in range(foo[0],len(irs['secs']),step):
     flagY = np.ones(dimY.shape)
     Y     = np.squeeze(yobs1[:,samp])
     sigY  = np.squeeze(ysig1[:,samp])
-    foo   = np.where(sigY > 0)[0]   # Any points with negative noise will have observed values of -999
+    foo   = np.where(sigY <= 0)[0]   # Any points with non-positive noise will have observed values of -999
     if len(foo) > 0:
         sigY[foo] = 9.
     sigY = sigY * vip['irs_noise_inflation']
