@@ -246,6 +246,14 @@ tropoe = Data_reads.read_tropoe(files[0],vip)
 # Now read in the IRS and MWR data (if desired)
 fail, irs, mwr, mwrscan = Data_reads.read_all_data(date, vip, dostop, verbose)
 
+# If we are going to use the MWR, then capture that with this flag
+if((mwr['n_fields'] > 0) and (vip['compute_lwp'] == 1) and (vip['retrieve_lcloud'] == 1) and (vip['ref_wnum'] < 0)):
+    using_mwr = 1
+    if verbose >= 0:
+        print('  MWR data will be used within MIXCRA retrieval')
+else:
+    using_mwr = 0
+
 # Identify the good samples (i.e., apply QC to the IRS data)
 qcflag = Other_functions.qc_irs(irs)
 if qcflag[0] < -900:
@@ -278,6 +286,18 @@ entire_spectrum = entire_spectrum.T
 # Now avereage the IRS data over the desired spectral bands
 yobs1, ysig1, nyobs1 = Other_functions.average_irs(irs,spectral_bands,vip['avg_instant'])       # These are the obs for the retrieval
 yobs2, ysig2, nyobs2 = Other_functions.average_irs(irs,entire_spectrum,vip['avg_instant'])      # This is only for the end
+
+# If the IRS data is bad, but we have MWR data for that sample, 
+# then reset the IRS data -999 so that the retrieval can continue
+if using_mwr == 1:
+    foo = np.where(qcflag == 0)[0]
+    if(len(foo) > 0):
+        print('    Resetting the bad IRS data to -999 so retrieval can process in MWR-only mode for those samples')
+        qcflag[foo]  = 1
+        yobs1[:,foo] = -999.
+        ysig1[:,foo] = -999.
+        yobs2[:,foo] = -999.
+        ysig2[:,foo] = -999.
 
 # Need to capture the latitude and longitude of the station
 if vip['station_alt'] > 0:
@@ -638,14 +658,9 @@ for samp in range(foo[0],len(irs['secs']),step):
     flagY = np.ones(dimY.shape)
     Y     = np.squeeze(yobs1[:,samp])
     sigY  = np.squeeze(ysig1[:,samp])
-    foo   = np.where(sigY > 0)[0]
-    if len(foo) <= 0:
-        print('Error: it seems that none of the IRS data were in the spectral bands -- aborting')
-        sys.exit()
-    minnoise = np.min(sigY[foo])
-    foo = np.where(sigY <= 0)[0]
+    foo   = np.where(sigY > 0)[0]   # Any points with negative noise will have observed values of -999
     if len(foo) > 0:
-        sigY[foo] = minnoise
+        sigY[foo] = 9.
     sigY = sigY * vip['irs_noise_inflation']
 
     # Append the MWR observations to the obs vector, if desired
@@ -733,7 +748,7 @@ for samp in range(foo[0],len(irs['secs']),step):
         
         if flag == 0:
             print('problem with the forward model')
-        
+
         # Perform the forward model calculation and compute the Jacobian for the
         # MWR-zenith portion of the observation vector.  Note there will only be
         # MWR data in the obs vector if the LWP retrieval is actually enabled
@@ -794,10 +809,10 @@ for samp in range(foo[0],len(irs['secs']),step):
             FXn = np.append(FXn,FF)
 
         # If the observation data are missing, then set the forward calc and Jacobian 
-        # for that obs to missing and 0, respectively
+        # for that obs to missing and 0, respectively (works for both IRS and MWR)
         foo = np.where(Y < -900)[0]
         if len(foo) > 0:
-            FXn[foo]   = Y[foo]
+            FXn[foo]   = np.copy(Y[foo])
             Kij[foo,:] = 0.
         
         # Do the retrieval calculations (matrix math)
