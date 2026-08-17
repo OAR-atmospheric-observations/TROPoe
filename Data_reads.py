@@ -1088,7 +1088,7 @@ def read_all_data(date, vip, dostop, verbose):
     # are cloudy samples, use the lidar to get an estimate of the cloud
     # base height for the subsequent retrieval
 
-    cirs = Other_functions.find_cloud(irs, vceil, vip['cbh_window_in'], vip['cbh_window_out'], vip['cbh_default_ht'])
+    cirs = Other_functions.find_cloud(irs, vceil, vip, verbose)
     
     mwr = grid_mwr(mwr_data, avg_instant, ret_secs, ret_tavg, vip['mwr_time_delta'], verbose)
 

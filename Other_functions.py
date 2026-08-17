@@ -566,45 +566,135 @@ def covariance_matrix_decorrelate_level(Sa,z,pblh,prior_pblh_decorrelate_factor)
 # be located (a bit less accurate). If both fail, then use the default CBH
 ################################################################################
 
-def find_cloud(irsch1, vceil, window_in, window_out, default_cbh):
+def find_cloud(irsch1, vceil, vip, verbose):
     
-    twin = window_in    # Full-width of time window for IRS observations [min]
-    twout = window_out  # Full-width of time window for IRS observations [max]
+    twin  = vip['cbh_window_in']    # Full-width of time window [minutes] for IRS observations [min]
+    twout = vip['cbh_window_out']   # Full-width of time window [minutes] for IRS observations [max]
        
         # The cloud flag. 1-> Inner window, 2-> Outer window, 3-> defaultCBH
-    vcbh = np.zeros(len(irsch1['secs']))
-    vflag = np.zeros(len(irsch1['secs']))
+    vcbh  = np.zeros(len(irsch1['secs']))         # The actual CBH
+    pobmn = np.zeros(len(irsch1['secs']))-999.    # The pseudo-ob mean value (preload with missing to help logic below)
+    pobsg = np.zeros(len(irsch1['secs']))         # The pseudo-ob uncertainty
+    vflag = np.zeros(len(irsch1['secs']), dtype=int)         # The cloud flag
     
+        # Loop over the samples to find all of the cases where the sample 
+        # is in the inner window or outside the outer window
     for i in range(len(irsch1['secs'])):
         
-        # Get any ceil cloud base height data that exist in the inner window
-        
+            # Identify samples with clouds within the inner window
         foo = np.where((irsch1['secs'][i]-(twin/2.)*60. <= vceil['secs']) &
                        (vceil['secs'] <= irsch1['secs'][i]+(twin/2.)*60.) &
                        (vceil['cbh'] >= 0))[0]
-        
         if len(foo) != 0:
-            vcbh[i] = np.nanmedian(vceil['cbh'][foo])
+            vcbh[i]  = np.nanmedian(vceil['cbh'][foo])
             vflag[i] = 1
+            pobmn[i] = vip['cbh_pobs_in_rh_val']
+            pobsg[i] = vip['cbh_pobs_in_rh_uncert']
         else:
-            # Get any ceil cloud base height data that exist in the outer window
-            
+            # Identify samples that are not in the inner window, but are within the outer window
             foo = np.where((irsch1['secs'][i]-(twout/2.)*60. <= vceil['secs']) &
                        (vceil['secs'] <= irsch1['secs'][i]+(twout/2.)*60.) &
                        (vceil['cbh'] >= 0))[0]
-            
             if len(foo) != 0:
-                vcbh[i] = np.nanmedian(vceil['cbh'][foo])
+                vcbh[i]  = np.nanmedian(vceil['cbh'][foo])
                 vflag[i] = 2
+                pobmn[i] = -888.    # A flag value we will replace soon
+                pobsg[i] = -888.    # A flag value we will replace soon
             else:
-                vcbh[i] = default_cbh
+                    # Otherwise, the sample is outside the outer window
+                vcbh[i]  = vip['cbh_default_ht']
                 vflag[i] = 3
+                pobmn[i] = vip['cbh_pobs_out_rh_val']
+                pobsg[i] = vip['cbh_pobs_out_rh_uncert']
     
+        # I need to handle the times at the beginning and end of the day that are 
+        # within the outer window (so that the interpolation scheme below works)
+    if(vflag[0] == 2):      # Work with the beginning of the day first
+        foo = np.where(vflag == 1)[0]
+        if len(foo) > 0:
+            times  = [irsch1['secs'][foo[0]] - (twout/2.)*60, irsch1['secs'][foo[0]]]
+            valmn  = [vip['cbh_pobs_out_rh_val'],             vip['cbh_pobs_in_rh_val']]
+            valsg  = [vip['cbh_pobs_out_rh_uncert'],          vip['cbh_pobs_in_rh_uncert']]
+            pobmn[0] = np.interp(irsch1['secs'][0],times,valmn)
+            pobsg[0] = np.interp(irsch1['secs'][0],times,valsg)
+    if(vflag[-1] == 2):    # Now work with the ending of the day
+        foo = np.where(vflag == 1)[0]
+        if len(foo) > 0:
+            times  = [irsch1['secs'][foo[-1]],       irsch1['secs'][foo[-1]] - (twout/2.)*60]
+            valmn  = [vip['cbh_pobs_in_rh_val'],     vip['cbh_pobs_out_rh_val']]
+            valsg  = [vip['cbh_pobs_in_rh_uncert'],  vip['cbh_pobs_out_rh_uncert']]
+            pobmn[0] = np.interp(irsch1['secs'][-1],times,valmn)
+            pobsg[0] = np.interp(irsch1['secs'][-1],times,valsg)
+
+    if(verbose >= 2):
+        foo = np.where(vflag == 1)[0]
+        print(f'  In find_cloud - there are {len(foo):d} samples that are inner')
+        foo = np.where(vflag == 2)[0]
+        print(f'  In find_cloud - there are {len(foo):d} samples that are outer')
+        foo = np.where(vflag == 3)[0]
+        print(f'  In find_cloud - there are {len(foo):d} samples that are neither')
+
+        # Quick sanity check: this should never happen
+    foo = np.where((vflag < 1) | (vflag > 3))[0]
+    if len(foo) > 0:
+        print('Logic error in find_cloud: some samples are not being properly flagged as in/out/neither - aborting')
+        sys.exit()
+
+        # The samples that are in the outer window but not the inner window are filled with -888s.
+        # There are two cases possible:
+        #   Case 1: the sample is between an inner window and environment: use linear interpolation
+        #   Case 2: the sample is in a gap between two inner windows: be sure to ramp appropriately
+
+                # Test for case 1: where the sample is between inner-and-env or vice-versa
+    foo = np.where(pobmn < -800)[0]
+    if len(foo) > 0:
+        print(f'  DDT -- there are {len(foo):d} cases I need to handle')
+        for i in range(len(foo)):
+                # Test for case 1: where the sample is between inner-and-inner
+            foo1 = np.where((irsch1['secs'] < irsch1['secs'][foo[i]]) & (vflag == 1))[0]
+            foo2 = np.where((irsch1['secs'] > irsch1['secs'][foo[i]]) & (vflag == 1))[0]
+            if((len(foo1) > 0) & (len(foo2) > 0)):
+                # Make sure there is no "environment" between these two 
+                # points, because if so, then don't do anything here
+                bar0 = np.where((irsch1['secs'][foo1[-1]] < irsch1['secs']) &
+                                (irsch1['secs'] < irsch1['secs'][foo2[0]]))[0]
+                bar1 = np.where((irsch1['secs'][foo1[-1]] < irsch1['secs']) &
+                                (irsch1['secs'] < irsch1['secs'][foo2[0]]) & (vflag == 2))[0]
+                if((len(bar0) == len(bar1)) & (len(bar0) > 0)):
+                    # Determine if this sample is closer to the "before" good point or the "after"
+                    if(np.abs(irsch1['secs'][foo1[-1]]-irsch1['secs'][foo[i]]) < 
+                      np.abs(irsch1['secs'][foo[i]]-irsch1['secs'][foo2[0]])):
+                        times = irsch1['secs'][foo1[-1]] + [0,(twout/2.)*60.]
+                        valmn = [pobmn[foo1[-1]],vip['cbh_pobs_out_rh_val']]
+                        valsg = [pobsg[foo1[-1]],vip['cbh_pobs_out_rh_uncert']]
+                    else:
+                        times = irsch1['secs'][foo2[0]] - [(twout/2.)*60.,0]
+                        valmn = [vip['cbh_pobs_out_rh_val'],pobmn[foo2[0]]]
+                        valsg = [vip['cbh_pobs_out_rh_uncert'],pobsg[foo2[0]]]
+                    pobmn[foo[i]] = np.interp(irsch1['secs'][foo[i]],times,valmn)
+                    pobsg[foo[i]] = np.interp(irsch1['secs'][foo[i]],times,valsg)
+
+                # Test for case 2: where the sample is between inner-and-env or vice-versa
+                #   Note I am using the -800 value to capture cases at either end side of the day
+    foo = np.where(pobmn < -800)[0]
+    if len(foo) > 0:
+        print(f'  DDT -- there are {len(foo):d} cases I need to handle')
+        for i in range(len(foo)):
+            foo1 = np.where((irsch1['secs'] < irsch1['secs'][foo[i]]) & (pobmn > -800))[0]
+            foo2 = np.where((irsch1['secs'] > irsch1['secs'][foo[i]]) & (pobmn > -800))[0]
+            if((len(foo1) > 0) & (len(foo2) > 0)):
+                pobmn[foo[i]] = np.interp(irsch1['secs'][foo[i]],
+                                [irsch1['secs'][foo1[-1]],irsch1['secs'][foo2[0]]],[pobmn[foo1[-1]],pobmn[foo2[0]]])
+                pobsg[foo[i]] = np.interp(irsch1['secs'][foo[i]],
+                                [irsch1['secs'][foo1[-1]],irsch1['secs'][foo2[0]]],[pobsg[foo1[-1]],pobsg[foo2[0]]])
+
+
     return ({'success':1, 'secs':irsch1['secs'], 'ymd':irsch1['ymd'], 'hour':irsch1['hour'],
             'yy':irsch1['yy'], 'mm':irsch1['mm'], 'dd':irsch1['dd'], 'cbh':vcbh, 'cbhflag':vflag,
             'hatchopen':irsch1['hatchopen'], 'avg_instant':irsch1['avg_instant'],
             'wnum':irsch1['wnum'], 'radmn':irsch1['radmn'], 'noise':irsch1['noise'], 
             'atmos_pres':irsch1['atmos_pres'], 'nearSfcTb':irsch1['nearSfcTb'], 
+            'pobs_mn':pobmn, 'pobs_sig':pobsg,
             'tsfc':irsch1['tsfc'], 'fv':irsch1['fv'], 'fa':irsch1['fa'], 'missingDataFlag':irsch1['missingDataFlag']})
 
 ################################################################################

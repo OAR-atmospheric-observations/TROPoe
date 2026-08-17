@@ -39,6 +39,7 @@ import sys
 # compute_jacobian_external_sfc_met()
 # compute_jacobian_external_sfc_co2()
 # compute_jacobian_microwavescan_3method()
+# compute_jacobian_pobs()
 # make_lblrtm_calc()
 # mixcra_forward_model()
 ################################################################################
@@ -1348,6 +1349,101 @@ def compute_jacobian_microwave_3method(Xn, p, z, freq, cbh, vip, workdir,
     flag = 1
 
     return flag, Kij, FXn, totaltime
+
+################################################################################
+# This function performs the forward model calculation and computes the jacobian
+# for the pseudo-obs of RH at cloud base height
+################################################################################
+def compute_jacobian_pobs(Xn, p, z, cbh_pobs, vip, Y, sigY, fixt, fixwv, verbose):
+
+        # Allocate space
+    Kij = np.zeros((1,len(Xn)))
+
+        # Compute the RH at the CBH.  First extract out the T and q vectors
+    k   = len(z)
+    t   = Xn[0:k]
+    q   = Xn[k:2*k]
+    lwp = Xn[2*k]
+    rh  = Calcs_Conversions.w2rh(q, p, t) * 100.  # Convert to %rh
+    FXn = np.interp(cbh_pobs['cbh'], z, rh)
+
+        # Now compute the Jacobian
+    delt = 0.5
+    foo1 = np.where(z <  cbh_pobs['cbh'])[0]
+    foo2 = np.where(z >= cbh_pobs['cbh'])[0]
+    if((len(foo1) > 0) & (len(foo2) > 0)):
+            # Only compute the sensitivity wrt temperature if the temperature is not fixed
+        if(fixt != 1):    
+                # Temperature ones first
+                #    The layer below the cloud
+            tt            = np.copy(t)
+            qq            = np.copy(q)
+            tt[foo1[-1]]  = t[foo1[-1]] + delt
+            rh0 = Calcs_Conversions.w2rh(qq, p, tt) * 100.  # Convert to %rh
+            rh1 = np.interp(cbh_pobs['cbh'], z, rh0)
+            Kij[0,foo1[-1]] = (rh1-FXn) / delt
+                #    The layer at or above the cloud
+            tt           = np.copy(t)
+            tt[foo2[0]]  = t[foo2[0]] + delt
+            rh0 = Calcs_Conversions.w2rh(qq, p, tt) * 100.  # Convert to %rh
+            rh1 = np.interp(cbh_pobs['cbh'], z, rh0)
+            Kij[0,foo2[0]] = (rh1-FXn) / delt
+
+            # Only compute the sensitivity wrt water vapor if the WVMR is not fixed
+        if(fixwv != 1):    
+                # Water vapor next
+                #    The layer below the cloud
+            tt            = np.copy(t)
+            qq            = np.copy(q)
+            qq[foo1[-1]]  = q[foo1[-1]]*0.99
+            rh0 = Calcs_Conversions.w2rh(qq, p, tt) * 100.  # Convert to %rh
+            rh1 = np.interp(cbh_pobs['cbh'], z, rh0)
+            Kij[0,k+foo1[-1]] = (rh1-FXn) / (qq[foo1[-1]] - q[foo1[-1]])
+                #    The layer at or above the cloud
+            qq           = np.copy(q)
+            qq[foo2[0]]  = q[foo2[0]]*0.99
+            rh0 = Calcs_Conversions.w2rh(qq, p, tt) * 100.  # Convert to %rh
+            rh1 = np.interp(cbh_pobs['cbh'], z, rh0)
+            Kij[0,k+foo2[0]] = (rh1-FXn) / (qq[foo2[0]] - q[foo2[0]])
+
+        # Now evaluate the current state of the state vector to see apply the proper 
+        # value and uncertainty to the pseudo-ob (what is currently in place depends
+        # on the cloud temperature and the LWP)
+            # Look at the cloud temperature first
+    valm0 = vip['cbh_pobs_out_rh_val']
+    vals0 = vip['cbh_pobs_out_rh_uncert']
+    valm1 = cbh_pobs['mn']
+    vals1 = cbh_pobs['sg']
+    tcld = np.interp(cbh_pobs['cbh'], z, t)
+    if(tcld < vip['cbh_pobs_cld_temp_thres']):
+        pobsmn1 = valm0
+        pobssg1 = vals0
+    elif(tcld > vip['cbh_pobs_cld_temp_thres']+vip['cbh_pobs_cld_temp_buffer']):
+        pobsmn1 = valm1
+        pobssg1 = vals1
+    else:
+        pobsmn1 = np.interp(tcld,[vip['cbh_pobs_cld_temp_thres'],vip['cbh_pobs_cld_temp_thres']+vip['cbh_pobs_cld_temp_buffer']],[valm0,valm1])
+        pobssg1 = np.interp(tcld,[vip['cbh_pobs_cld_temp_thres'],vip['cbh_pobs_cld_temp_thres']+vip['cbh_pobs_cld_temp_buffer']],[vals0,vals1])
+            # Look at the LWP next
+    if(lwp < vip['cbh_pobs_lwp_thres']):
+        pobsmn2 = valm0
+        pobssg2 = vals0
+    elif(tcld > vip['cbh_pobs_lwp_thres']+vip['cbh_pobs_lwp_buffer']):
+        pobsmn2 = valm1
+        pobssg2 = vals1
+    else:
+        pobsmn2 = np.interp(lwp,[vip['cbh_pobs_lwp_thres'],vip['cbh_pobs_lwp_thres']+vip['cbh_pobs_lwp_buffer']],[valm0,valm1])
+        pobssg2 = np.interp(lwp,[vip['cbh_pobs_lwp_thres'],vip['cbh_pobs_lwp_thres']+vip['cbh_pobs_lwp_buffer']],[vals0,vals1])
+
+            # Now take the most conservative option (the one with the largest uncertainty) to use as the current pseudo-ob
+    if(pobssg2 > pobssg1):
+        mn_pob = pobsmn2
+        sg_pob = pobssg2
+    else:
+        mn_pob = pobsmn1
+        sg_pob = pobssg1
+
+    return Kij, [[FXn]], mn_pob, sg_pob
 
 ################################################################################
 # This function performs the forward model calculation and computes the jacobian

@@ -807,6 +807,11 @@ def write_output(vip, ext_prof, mod_prof, ext_tseries, globatt, xret, prior,
             obs_flag.value_12 = 'Retrieved water vapor [g/kg] from a previous good TROPoe retrieval on this day'
             marker[foo] = -1
 
+        foo = np.where(xret[0]['flagY'] == 13)[0]
+        if len(foo) > 0:
+            obs_flag.value_13 = 'Pseudo-observation of RH at cloud base; dimension is the observed CBH'
+            marker[foo] = -1
+
         # If there were any values for marker that were not treated above,
         # then the code must assume that I've screwed up and should abort.
 

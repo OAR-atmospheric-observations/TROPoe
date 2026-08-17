@@ -214,9 +214,19 @@ full_tropoe_vip = ({
     'cbh_time_format': {'value': 0, 'comment': 'Time format for CBH datastream, used when cbh_type=20: 0-base_time/{time_offset,time} [epoch seconds], 1-time [epoch seconds]', 'default': True},
     'cbh_fieldname': {'value': 'first_cbh', 'comment': 'Name of CBH field, used when cbh_type=20', 'default': True},
     'cbh_units': {'value': 1, 'comment': 'Units of CBH field, used when cbh_type=20: 1-m AGL, 2-km AGL', 'default': True},
-    'cbh_window_in': {'value': 20, 'comment': 'Inner temporal window (full-size) centered upon IRS time to look for cloud', 'default': True},
-    'cbh_window_out': {'value': 180, 'comment': 'Outer temporal window (full-size) centered upon IRS time to look for cloud}', 'default': True},
     'cbh_default_ht': {'value': 2.0, 'comment': 'Default CBH height [km AGL], if no CBH data found \n', 'default': True},
+
+    'cbh_pobs_flag': {'value': 0, 'comment': 'To use (1) or not (0) the RH pseudo-obs at cloud base height', 'default': True},
+    'cbh_pobs_lwp_thres': {'value': 10., 'comment': 'The minimum LWP [g/m2] required before the RH pseudo-obs will be used', 'default': True},
+    'cbh_pobs_lwp_buffer': {'value': 5., 'comment': 'The buffer LWP [g/m2] added to cbh_pobs_lwp_thres for the RH pseudo-obs to be fully used', 'default': True},
+    'cbh_pobs_cld_temp_thres': {'value': -10., 'comment': 'The minimum temperature [degC] at CBH required before the RH pseudo-obs will be used', 'default': True},
+    'cbh_pobs_cld_temp_buffer': {'value': 5., 'comment': 'The buffer temperature [degC] added to cbh_pobs_cld_temp_thres for the RH pseudo-obs to be fully used', 'default': True},
+    'cbh_pobs_in_rh_val': {'value': 95.0, 'comment': 'The RH pseudo-obs [% RH] at cloud base height, if within the cbh_window_in and the cloud has LWP and temperature above their thresholds', 'default': True},
+    'cbh_pobs_in_rh_uncert': {'value': 5.0, 'comment': 'The uncertainty in the RH pseudo-obs [% RH] at cloud base height', 'default': True},
+    'cbh_pobs_out_rh_val': {'value': 60.0, 'comment': 'The RH pseudo-obs [% RH] at cloud base height, if outside the cbh_window_in and at the maximum cbh_window_out', 'default': True},
+    'cbh_pobs_out_rh_uncert': {'value': 40.0, 'comment': 'The uncertainty in the RH pseudo-obs [% RH] at cloud base height', 'default': True},
+    'cbh_window_in': {'value': 20, 'comment': 'Inner temporal window (full-size) centered upon retrieval time to look for cloud', 'default': True},
+    'cbh_window_out': {'value': 180, 'comment': 'Outer temporal window (full-size) centered upon retrieval time to look for cloud} \n', 'default': True},
 
     'output_rootname': {'value': 'None', 'comment': 'String with the rootname of the output file', 'default': True},
     'output_path': {'value': '/data/tropoe', 'comment': 'Path where the output file will be placed', 'default': True},
@@ -742,10 +752,38 @@ def check_vip(vip):
         print('Error: cbh_window_out must be positive')
         flag = 1
     
-    if vip['cbh_window_in'] > vip['cbh_window_out']:
+    if vip['cbh_window_in'] >= vip['cbh_window_out']:
         print('Error: cbh_window_in must be less than cbh_window_out')
         flag = 1
-    
+
+    if((vip['cbh_pobs_flag'] == 1) & (vip['cbh_pobs_lwp_thres'] < 0)):
+        print('Error: cbh_pobs_lwp_thres must be non-negative when cbh_pobs_flag is on')
+        flag = 1
+
+    if((vip['cbh_pobs_flag'] == 1) & (vip['cbh_pobs_lwp_buffer'] <= 0)):
+        print('Error: cbh_pobs_lwp_buffer must be positive when cbh_pobs_flag is on')
+        flag = 1
+
+    if((vip['cbh_pobs_flag'] == 1) & (vip['cbh_pobs_cld_temp_buffer'] <= 0)):
+        print('Error: cbh_pobs_cld_temp_buffer must be positive when cbh_pobs_flag is on')
+        flag = 1
+
+    if((vip['cbh_pobs_flag'] == 1) & ((vip['cbh_pobs_in_rh_val'] <= 0) | (100 < vip['cbh_pobs_in_rh_val']))):
+        print('Error: cbh_pobs_in_rh_val must be in (0,100] %rh when cbh_pobs_flag is on')
+        flag = 1
+
+    if((vip['cbh_pobs_flag'] == 1) & (vip['cbh_pobs_in_rh_uncert'] <= 0)):
+        print('Error: cbh_pobs_in_rh_uncert must be non-negative when cbh_pobs_flag is on')
+        flag = 1
+
+    if((vip['cbh_pobs_flag'] == 1) & ((vip['cbh_pobs_out_rh_val'] <= 0) | (100 < vip['cbh_pobs_out_rh_val']))):
+        print('Error: cbh_pobs_out_rh_val must be in (0,100] %rh when cbh_pobs_flag is on')
+        flag = 1
+
+    if((vip['cbh_pobs_flag'] == 1) & (vip['cbh_pobs_out_rh_uncert'] <= 0)):
+        print('Error: cbh_pobs_out_rh_uncert must be non-negative when cbh_pobs_flag is on')
+        flag = 1
+
     if vip['cbh_default_ht'] <= 0:
         print('Error: cbh_default_ht must be positive')
         flag = 1

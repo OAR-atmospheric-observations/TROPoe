@@ -534,7 +534,6 @@ if status != 'success':
 
 # Read in the data
 fail, irs, mwr, mwrscan = Data_reads.read_all_data(date, vip, dostop, verbose)
-
 if fail == 1:
     print('Error reading in data: aborting')
     VIP_Databases_functions.abort(lbltmpdir,date)
@@ -877,7 +876,8 @@ for i in range(len(irs['secs'])):                        # { loop_i
     #               10 -- MWR non-zenith data
     #               11 -- TROPoe T input following Adler et al. AMT
     #               12 -- TROPoe q input following Adler et al. AMT
-    #               13, ... future obs, such as IASI, CrIS, S-HIS, others...
+    #               13 -- CBH RH pseudo obs
+    #               14 ... future obs, such as IASI, CrIS, S-HIS, others...
     #     (*) Note that the NWP input could come in two ways, but I wanted a way
     #         to bring in lidar and NWP data, while retaining backwards compatibility
 
@@ -1052,6 +1052,18 @@ for i in range(len(irs['secs'])):                        # { loop_i
         sigY = np.append(sigY, inflated_sigma)
         flagY = np.append(flagY, np.ones(len(inflated_sigma))*12)
         dimY = np.append(dimY, in_tropoe['height'])
+
+    if vip['cbh_pobs_flag'] == 1:
+            # A structure to keep track of these details (always a singleton)
+        cbh_pobs = {'idx':len(Y), 'cbh':irs['cbh'][i], 'mn':irs['pobs_mn'][i], 'sg':irs['pobs_sig'][i]}  
+            # Now add the ob to the observation vector
+        Y = np.append(Y, irs['pobs_mn'][i])
+        nSy  = [[irs['pobs_sig'][i]**2]]
+        zero = np.zeros((1,len(sigY)))
+        sigY = np.append(sigY,irs['pobs_sig'][i])
+        Sy = np.append(np.append(Sy,zero,axis=0),np.append(zero.T,nSy,axis=0),axis=1) # DDT-delete
+        flagY = np.append(flagY, 13)
+        dimY = np.append(dimY, irs['cbh'][i])
 
     nY = len(Y)
 
@@ -1858,6 +1870,28 @@ for i in range(len(irs['secs'])):                        # { loop_i
                 KK[foo[ii],foo[ii]+int(nX/2)] = 1
             Kij = np.append(Kij, KK, axis = 0)
             FXn = np.append(FXn,FF)
+
+        # Perform the forward model calculation and compute the Jacobian for the RH pseudo observation at cloud base
+        foo = np.where(flagY == 13)[0]
+        if len(foo) > 0:
+            KK, FF, tmp_pobmn, tmp_pobsg = Jacobian_Functions.compute_jacobian_pobs(Xn, p, z, cbh_pobs, 
+                                                vip, Y, sigY, fixtemp, fixwvmr, verbose)
+                # Are there misssing values in the pseudo-ob? If so, then we want to make
+                # the forward model calculation have the same value and put no sensitivity
+                # in the Jacobian there so that the retrieval is unaffected
+            bar = np.where(Y[foo] < -900)[0]
+            if len(bar) > 0:
+                FF[bar] = Y[foo[bar]]
+                KK[bar,:] = 0.
+            Kij = np.append(Kij, KK, axis = 0)
+            FXn = np.append(FXn,FF)
+
+                # Now replace the current pseudo-ob in the obs vector with what should be used, 
+                # accounting for the cloud temperature and LWP and depending on the settings in the VIP
+            Y[cbh_pobs['idx']] = tmp_pobmn
+            sigY[cbh_pobs['idx']] = tmp_pobsg
+            Sm[cbh_pobs['idx'],cbh_pobs['idx']]    =    (tmp_pobsg)**2  # This is a little dangerous (assumes Sf = 0 for this index)
+            SmInv[cbh_pobs['idx'],cbh_pobs['idx']] = (1./tmp_pobsg)**2  # This is a little dangerous (assumes Sf = 0 for this index)
 
 
         ########
