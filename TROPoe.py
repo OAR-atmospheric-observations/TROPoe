@@ -839,9 +839,10 @@ for i in range(len(irs['secs'])):                        # { loop_i
 
     # See if we want to use the external sfc pressure instead of irs pressure
     # and check to make sure external data read went okay
-    if ((vip['ext_sfc_pres_type'] > 0) & (ext_tseries['nPsfc'] >= 0) & (ext_tseries['psfc'][i] > vip['station_psfc_min'])):
-        print("    Replacing pressure with " +  ext_tseries['ptype'] + " pressure")
-        irs['atmos_pres'][i] = ext_tseries['psfc'][i]
+    if ((vip['ext_sfc_pres_type'] > 0) & (ext_tseries['nPsfc'] > 0)):
+        if(ext_tseries['psfc'][i] > vip['station_psfc_min']):
+            print("    Replacing pressure with " +  ext_tseries['ptype'] + " pressure")
+            irs['atmos_pres'][i] = ext_tseries['psfc'][i]
 
     # Make sure the IRS's surface pressure is a valid value, as
     # this is needed to construct a pressure profile from the current X
