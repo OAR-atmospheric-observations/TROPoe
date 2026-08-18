@@ -1531,7 +1531,8 @@ def convolve_to_irs(wnum, radiance, vlaser, do_sinc2=0):
     
     # And the last step: cut off data before and after the actual
     # minimum and maximum wavenumber intervals of the input data
-    foo = np.where((minv+tapersize <= final_aeri_wnum) & (final_aeri_wnum <= maxv-tapersize))[0]
+    # (Add small fudge factors to make sure we aren't clobbered by precision)
+    foo = np.where((minv+tapersize-0.01 <= final_aeri_wnum) & (final_aeri_wnum <= maxv-tapersize+0.01))[0]
     if len(foo) == 0:
         print('ERROR: the spectral range is smaller than twice the tapersize -- aborting')
         return 0
