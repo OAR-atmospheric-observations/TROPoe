@@ -2231,6 +2231,7 @@ def compute_jacobian_microwavescan_3method(Xn, p, z, mwrscan, cbh, vip, workdir,
 
 def make_lblrtm_calc(vip, ymd, hour, co2, z, p, t, w, pwv, wnum1, wnum2, delt, verbose):
 
+    append_devnull = True    # Set this to have the LBLRTM output piped to /dev/null, otherwise it will be output
     err = {'status':0}
     if verbose >-2:
         quiet=0
@@ -2271,8 +2272,10 @@ def make_lblrtm_calc(vip, ymd, hour, co2, z, p, t, w, pwv, wnum1, wnum2, delt, v
         
         command = ('setenv LBL_RUN_ROOT ' + vip['workdir'] + ' ; '+
                     'setenv LBL_HOME ' + vip['lblrtm_home'] + ' ; '+
-                    '$LBL_HOME/bin/lblrun ' + tp5 + ' ' + out + ' ' + vip['lbl_tape3'])
-        
+                    '$LBL_HOME/bin/lblrun ' + tp5 + ' ' + out + ' ' + vip['lbl_tape3'] + '& ; wait ')
+        if append_devnull:
+            command = (command + ' >& /dev/null')
+
         # Logic to catch various errors that could occur when we spawn off the LBLRTM runs
         try:
             with Popen(command, stdout = PIPE, stderr = PIPE, shell=True, executable = '/bin/csh') as process:
