@@ -575,6 +575,23 @@ if ehour <= shour:
 ofilename = ' '
 for samp in range(foo[0],len(irs['secs']),step):
 
+    # DDT -- a debugging measure, to watch how the shared memory usage changes
+#    with Popen('df /dev/shm >> /data/shared_memory.txt', stdout = PIPE, stderr = PIPE, shell=True) as process:
+#        try:
+#            stdout, stderr = process.communicate()
+#        except Exception as e:
+#            print('Error -- process did not write out shared memory use properly')
+#            sys.exit()
+
+    # Manually cleaning up residual files in the shared memory directory.
+    # The C-code executables are leaving small residual files, that eventually 
+    # add up and cause container to run out of memory
+    for f in glob.glob("/dev/shm/*KMP_REGISTERED_LIB*"):
+        try:
+            os.remove(f)
+        except:
+            pass
+
     # Only process the samples that exist in the desired window
     if irs['hour'][samp] < shour:
         continue
@@ -747,7 +764,8 @@ for samp in range(foo[0],len(irs['secs']),step):
                         vip['retrieve_lcloud'], vip['retrieve_icloud'], verbose)
         
         if flag == 0:
-            print('problem with the forward model')
+            print('Error: problem with the forward model -- aborting')
+            sys.exit()
 
         # Perform the forward model calculation and compute the Jacobian for the
         # MWR-zenith portion of the observation vector.  Note there will only be

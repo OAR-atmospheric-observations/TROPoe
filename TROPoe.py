@@ -817,6 +817,15 @@ for i in range(len(irs['secs'])):                        # { loop_i
     if ((shour >= irs['hour'][i]) | (irs['hour'][i] > ehour)):
         continue
 
+    # Manually cleaning up residual files in the shared memory directory.
+    # The C-code executables are leaving small residual files, that eventually 
+    # add up and cause container to run out of memory
+    for f in glob.glob("/dev/shm/*KMP_REGISTERED_LIB*"):
+        try:
+            os.remove(f)
+        except:
+            pass
+
     # Make sure that the IRS data aren't missing or considered bad
     adderr = ''
     if(itype == 'IRS'):
