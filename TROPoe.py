@@ -820,7 +820,7 @@ for i in range(len(irs['secs'])):                        # { loop_i
     # Manually cleaning up residual files in the shared memory directory.
     # The C-code executables are leaving small residual files, that eventually 
     # add up and cause container to run out of memory
-    for f in glob.glob("/dev/shm/*KMP_REGISTERED_LIB*"):
+    for f in glob("/dev/shm/*KMP_REGISTERED_LIB*"):
         try:
             os.remove(f)
         except:
