@@ -608,14 +608,20 @@ for samp in range(foo[0],len(irs['secs']),step):
     if vip['fix_cbh'] > 0:
         cbh = vip['fix_cbh']
     else:
-        # Interpolate the CBH from the TROPoe retrievals in time, but don't extrapolate the CBH
-        cbh = np.interp(irs['hour'][samp],tropoe['hour'],tropoe['cbh'])
-        if irs['hour'][samp] < tropoe['hour'][0]:
-            cbh = tropoe['cbh'][0]
-        if irs['hour'][samp] > tropoe['hour'][-1]:
-            cbh = tropoe['cbh'][-1]
-        if cbh <= 0:
-            cbh = np.abs(vip['fix_cbh'])
+            # If there is a valid cbh_type, then use the CBH that is include in the IRS structure
+        if vip['cbh_type'] > 0:
+            cbh = irs['cbh'][samp]
+            if cbh <= 0:
+                cbh = np.abs(vip['fix_cbh'])
+            # Otherwise, interpolate the CBH from the TROPoe retrievals in time, but don't extrapolate the CBH
+        else:
+            cbh = np.interp(irs['hour'][samp],tropoe['hour'],tropoe['cbh'])
+            if irs['hour'][samp] < tropoe['hour'][0]:
+                cbh = tropoe['cbh'][0]
+            if irs['hour'][samp] > tropoe['hour'][-1]:
+                cbh = tropoe['cbh'][-1]
+            if cbh <= 0:
+                cbh = np.abs(vip['fix_cbh'])
 
     if len(tropoe['hour']) == 1:
         lwc = Other_functions.create_lwc_profile(max(tropoe['lwp'],5),tropoe['height'], cbh, vip['lwc'])
@@ -730,7 +736,7 @@ for samp in range(foo[0],len(irs['secs']),step):
     anneal_step = 1.0
 
     # Now perfrom the iterations
-    while((itern < vip['maxiter']-1) and (conv == 0)):
+    while((itern < vip['maxiter']  ) and (conv == 0)):
         # Capture the total optical depth
         total_tau = Xn[0]+Xn[1]
 
@@ -920,7 +926,7 @@ for samp in range(foo[0],len(irs['secs']),step):
         if verbose >= 1:
             print('         Converged via di2m test')
         itern -= 1
-    elif itern >= vip['maxiter'] - 1:
+    elif itern >= vip['maxiter']:
         foo = np.where(irms == np.min(irms))[0]
         itern = foo[0]
         if verbose >= 1:
@@ -948,7 +954,7 @@ for samp in range(foo[0],len(irs['secs']),step):
     Sop[2,:] = Sop[2,:] * d_iQext_ratio
     Sop[:,2] = Sop[:,2] * d_iQext_ratio
 
-    if verbose >= 1:
+    if verbose >= 2:
         tmp1 = np.sqrt(np.diag(Sop))
         tmp2 = np.diag(Akern)
         print('         {:6.2f} {:6.2f} {:6.2f} {:6.2f} : 1-sigma uncertainties'.format(tmp1[0],tmp1[1],tmp1[2],tmp1[3]))
