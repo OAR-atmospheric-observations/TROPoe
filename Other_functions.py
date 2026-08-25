@@ -2717,11 +2717,18 @@ def inflate_in_tropoe_uncertainty(flag, sampleTime, in_tropoe, zSa, Sa, vip, ver
         if delt <= 0:
             print('ERROR in inflate_in_tropoe_uncertainty: the time delta must be strictly positive -- aborting')
             sys.exit()
-                # Noise inflation factor
-                # Adjust this noise inflation factor to be insensitive to
-                # the tres per notes on 19 May 2026
-        tres10 = 10*60       # This is the reference time resolution [seconds], used in Adler et al. 2024
-        tmp   = 1. + (delt - tres10)/tres10
+                # Noise inflation factor (note it could be different for temp vs wvmr)
+                # Adjust this noise inflation factor to be insensitive to the tres per notes on 19 May 2026
+        if flag == 'T':
+            tresref = vip['add_tropoe_T_time_ref']
+        elif flag == 'q':
+            tresref = vip['add_tropoe_q_time_ref']
+        else:
+            print('Error in inflate_in_tropoe_uncertainty: the flag selecting temp or WVMR was not set properly -- aborting')
+            sys.exit()
+
+        tresref = tresref * 60  # Convert the reference time from minutes to seconds
+        tmp   = 1. + (delt - tresref)/tresref
         if tmp < 1:
             tmp = 1
         inflateFactor  = np.sqrt(tmp)

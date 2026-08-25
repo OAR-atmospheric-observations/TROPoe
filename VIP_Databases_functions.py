@@ -196,8 +196,10 @@ full_tropoe_vip = ({
     'add_tropoe_gamma_threshold':   {'value': 2, 'comment': 'Only samples with gamma values less than this threshold will be considered for use in future retrieval', 'default': False},
     'add_tropoe_T_noise_adder_val': {'value': [3.0, 1, 1], 'comment': '3-element comma delimited list of additive values to apply the noise profile of the previous TROPoe input temperature profile (must be >= 0)', 'default': False},
     'add_tropoe_T_noise_adder_hts': {'value': [0.0, 1, 20], 'comment': '3-element comma delimited list with the corresponding heights for the additive value [km AGL]', 'default': False},
+    'add_tropoe_T_time_ref':        {'value': 10., 'comment': 'The window-time [minutes] used to inflate the noise in the add_tropoe_T', 'default': False},
     'add_tropoe_q_noise_mult_val':  {'value': [5.0, 2, 2], 'comment': '3-element comma delimited list with the multipliers to apply the noise profile of the previous TROPoe input water vapor profile (must be > 1)', 'default': False},
     'add_tropoe_q_noise_mult_hts':  {'value': [0.0, 1, 20], 'comment': '3-element comma delimited list with the corresponding heights for the noise multipliers [km AGL]', 'default': False},
+    'add_tropoe_q_time_ref':        {'value': 10., 'comment': 'The window-time [minutes] used to inflate the noise in the add_tropoe_q', 'default': False},
     'add_tropoe_use_prior_as_max':  {'value': 1, 'comment': 'If set, then the maximum amount of uncertainty is the uncertainty of the prior', 'default': False},
     'add_tropoe_use_pblh_flag':     {'value': 1, 'comment': 'If set, then the middle height point in the adder and multiplier profiles becomes maximum of that value or the PBLH [km AGL]\n', 'default': True},
 
