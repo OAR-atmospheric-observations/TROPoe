@@ -1476,7 +1476,10 @@ for i in range(len(irs['secs'])):                        # { loop_i
         # Select the wavenumber indices to use
         w1idx, junk = Other_functions.find_wnum_idx(wnumc, bands)
         if len(w1idx) != len(w0idx):
-            print('Problem with wnum indices1')
+            print('Problem with wnum indices1 -- implies a mismatch in the spectral range of IRS obs vs LBLRTM')
+            print(f"Number of indices in w0idx is {len(w0idx):d} and w1idx is {len(w1idx):d}")
+            print(f"Minimum wavenumber for w0idx is {wnum[w0idx[0]]:.2f} and w1idx is {wnumc[w1idx[0]]:.2f}")
+            print(f"Maximum wavenumber for w0idx is {wnum[w0idx[-1]]:.2f} and w1idx is {wnumc[w1idx[-1]]:.2f}")
             VIP_Databases_functions.abort(lbltmpdir,date)
             sys.exit()
         wnumc = wnumc[w1idx]
