@@ -2337,7 +2337,18 @@ def read_vceil(path, date, vip, ret_secs, verbose):
 
             # Now read in the CBH field, as specified by the VIP file
             if len(np.where(np.array(list(fid.variables.keys())) == vip['cbh_fieldname'])[0]) > 0:
-                cbhx = fid.variables[vip['cbh_fieldname']][:].astype('float')
+                cbhxx = fid.variables[vip['cbh_fieldname']][:].astype('float')
+                if cbhxx.ndim == 1:
+                    cbhx = cbhxx
+                elif cbhxx.ndim == 2:
+                    if cbhxx[:,0].ndim == to.ndim:
+                        cbhx = np.squeeze(cbhxx[:,0])
+                    else:
+                        cbhx = np.squeeze(cbhxx[0,:])
+                else:
+                    print(f"read_vceil() does not know how to handle {vip['cbh_fieldname']:s} ",
+                              "because its dimension is larger than 2 -- aborting"),
+                    sys.exit()
                 if vip['cbh_units'] == 1:
                     cbhx /= 1000.                        # Convert m AGL to km AGL
                 elif vip['cbh_units'] == 2:
