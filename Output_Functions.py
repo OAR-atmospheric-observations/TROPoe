@@ -812,6 +812,21 @@ def write_output(vip, ext_prof, mod_prof, ext_tseries, globatt, xret, prior,
             obs_flag.value_13 = 'Pseudo-observation of RH at cloud base; dimension is the observed CBH'
             marker[foo] = -1
 
+        foo = np.where(xret[0]['flagY'] == 14)[0]
+        if len(foo) > 0:
+            obs_flag.value_14 = 'Retrieved co2 [ppm] from a previous good TROPoe retrieval on this day'
+            marker[foo] = -1
+
+        foo = np.where(xret[0]['flagY'] == 15)[0]
+        if len(foo) > 0:
+            obs_flag.value_15 = 'Retrieved ch4 [ppm] from a previous good TROPoe retrieval on this day'
+            marker[foo] = -1
+
+        foo = np.where(xret[0]['flagY'] == 16)[0]
+        if len(foo) > 0:
+            obs_flag.value_16 = 'Retrieved n2o [ppm] from a previous good TROPoe retrieval on this day'
+            marker[foo] = -1
+
         # If there were any values for marker that were not treated above,
         # then the code must assume that I've screwed up and should abort.
 
@@ -1282,8 +1297,10 @@ def create_xret(xret, fsample, vip, irs, Xa, Sa, z, bands, obsdim, obsflag, shou
     xz = fid.variables['height'][:]
     xt = fid.variables['temperature'][:]
     xq = fid.variables['waterVapor'][:]
+    xc = fid.variables['co2'][:]
     xst = fid.variables['sigma_temperature'][:]
     xsq = fid.variables['sigma_waterVapor'][:]
+    xsc = fid.variables['sigma_co2'][:]
     gfac = fid.variables['gamma'][:]
     pblh = fid.variables['pblh'][:]
     cbh = fid.variables['cbh'][:]
@@ -1296,7 +1313,7 @@ def create_xret(xret, fsample, vip, irs, Xa, Sa, z, bands, obsdim, obsflag, shou
 
     # Load the in_tropoe structure with the last good profile (if one exists)
     # Be sure to keep the logic to identify samples that go into in_tropoe the same as in TROPoe.py
-    if((vip['add_tropoe_T_input_flag'] == 1) | (vip['add_tropoe_q_input_flag'] == 1)):
+    if((vip['add_tropoe_T_input_flag'] == 1) | (vip['add_tropoe_q_input_flag'] == 1) | (vip['add_tropoe_co2_input_flag'] == 1)):
         idx = -1
         for i in range(len(secs)):
             if((gfac[i] < vip['add_tropoe_gamma_threshold']) & ((cbh[i] > vip['add_tropoe_input_cbh_thres']) | (lwp[i] < vip['add_tropoe_input_lwp_thres']))):
@@ -1305,7 +1322,9 @@ def create_xret(xret, fsample, vip, irs, Xa, Sa, z, bands, obsdim, obsflag, shou
             print(f'  Extracted retrieved profile at {xhour[idx]:.4f} UTC to the "in_tropoe" structure, to be used as input later')
             in_tropoe = {'secs':secs[idx], 'height':xz, 'pblh':pblh[idx], 'lwp':lwp[idx],
                            'temperature':np.copy(xt[idx,:]), 'waterVapor':np.copy(xq[idx,:]),
-                           'sigma_temperature':np.copy(xst[idx,:]), 'sigma_waterVapor':np.copy(xsq[idx,:])}
+                           'sigma_temperature':np.copy(xst[idx,:]), 'sigma_waterVapor':np.copy(xsq[idx,:]),
+                           'co2_FT':np.copy(xc[idx,0]), 'sigma_co2_FT':np.copy(xsc[idx,0]),
+                           'co2_BL':np.copy(xc[idx,1]), 'sigma_co2_BL':np.copy(xsc[idx,1])}
 
     # Convert the masked arrays to ndarrays
     #   Note that setting the mask values to zero should not do anything, as there shouldn't

@@ -2704,8 +2704,10 @@ def inflate_in_tropoe_uncertainty(flag, sampleTime, in_tropoe, zSa, Sa, vip, ver
     tres = vip['tres']*60       # get the temporal resolution of the retrievals in seconds
 
         # Extract out the 1-sigma uncertainties from the prior
-    Sa_sigT = sig_t = np.sqrt(np.diag(Sa))[0:len(zSa)]
-    Sa_sigq = sig_t = np.sqrt(np.diag(Sa))[len(zSa):2*len(zSa)]
+    Sa_sigT   = np.sqrt(np.diag(Sa))[0:len(zSa)]
+    Sa_sigq   = np.sqrt(np.diag(Sa))[len(zSa):2*len(zSa)]
+    idx       = np.arange(2)+2*len(zSa)+4
+    Sa_sigco2 = np.sqrt(np.diag(Sa))[idx]
 
         # Only apply logic if there is a valid profile in the in_tropoe structure (i.e., secs > 0)
     if in_tropoe['secs'] > 0:
@@ -2723,8 +2725,10 @@ def inflate_in_tropoe_uncertainty(flag, sampleTime, in_tropoe, zSa, Sa, vip, ver
             tresref = vip['add_tropoe_T_time_ref']
         elif flag == 'q':
             tresref = vip['add_tropoe_q_time_ref']
+        elif flag == 'co2':
+            tresref = vip['add_tropoe_co2_time_ref']
         else:
-            print('Error in inflate_in_tropoe_uncertainty: the flag selecting temp or WVMR was not set properly -- aborting')
+            print('Error in inflate_in_tropoe_uncertainty: the flag selecting temp, WVMR, or co2 was not set properly -- aborting')
             sys.exit()
 
         tresref = tresref * 60  # Convert the reference time from minutes to seconds
@@ -2745,11 +2749,39 @@ def inflate_in_tropoe_uncertainty(flag, sampleTime, in_tropoe, zSa, Sa, vip, ver
             scaleht  = vip['add_tropoe_q_noise_mult_hts']
             scaleval = vip['add_tropoe_q_noise_mult_val']
             minvalue = 1.0      # Will require that the multiplier always be above 1
+        elif flag == 'co2':
+                # Determine the noise level for the co2 BL in_tropoe sample.  Note that it can be no smaller
+                # than vip['add_tropoe_co2_BL_min_noise'] and no larger than the prior uncertainty (Sa_sigco2)
+            if in_tropoe['sigma_co2_BL'] <= 0:
+                minvalBL = vip['add_tropoe_co2_BL_min_noise']
+            elif in_tropoe['sigma_co2_BL'] < vip['add_tropoe_co2_BL_min_noise']:
+                minvalBL = vip['add_tropoe_co2_BL_min_noise']
+            else:
+                minvalBL = in_tropoe['sigma_co2_BL']
+            uncertBL = minvalBL * inflateFactor
+            if uncertBL > Sa_sigco2[1]:
+                uncertBL = Sa_sigco2[1]
+
+                # Same logic for the co2 FT in_tropoe sample.
+            if in_tropoe['sigma_co2_FT'] <= 0:
+                minvalFT = vip['add_tropoe_co2_FT_min_noise']
+            elif in_tropoe['sigma_co2_FT'] < vip['add_tropoe_co2_FT_min_noise']:
+                minvalFT = vip['add_tropoe_co2_FT_min_noise']
+            else:
+                minvalFT = in_tropoe['sigma_co2_FT']
+            uncertFT = minvalFT * inflateFactor
+            if uncertFT > Sa_sigco2[0]:
+                uncertFT = Sa_sigco2[0]
+
+                # Return the two uncertainties
+            return np.array([uncertFT, uncertBL])
         else:
-            print('Error in inflate_in_tropoe_uncertainty: the flag selecting temp or WVMR was not set properly -- aborting')
+            print('Error in inflate_in_tropoe_uncertainty: the flag selecting temp, WVMR, co2 was not set properly -- aborting')
             sys.exit()
-                # The scaleht profiles are all 3-pt arrays.  If the VIP.add_tropoe_use_pblh_flag is set, then replace the middle
-                # then replace the center value with the max{in_tropoe.pblh,scaleht(1)}
+
+                # The logic from here and below are for the profiles of temperature and water vapor
+                # The scaleht profiles are all 3-pt arrays.  If the VIP.add_tropoe_use_pblh_flag is set, then 
+                # replace the middle then replace the center value with the max{in_tropoe.pblh,scaleht(1)}
         if((vip['add_tropoe_use_pblh_flag'] == 1) & (scaleht[1] < in_tropoe['pblh'])):
                 scaleht[1] = in_tropoe['pblh']
         if verbose > 1:
@@ -2781,7 +2813,10 @@ def inflate_in_tropoe_uncertainty(flag, sampleTime, in_tropoe, zSa, Sa, vip, ver
 
         return eprofile
     else:
-        return np.zeros(len(in_tropoe['height'])).astype('float')+999.
+        if flag == 'co2':
+            return np.array([999., 999.])
+        else:
+            return np.zeros(len(in_tropoe['height'])).astype('float')+999.
 
 ###############################################################################
 # This function computes an estimate of the cloud base height using the minimum

@@ -797,7 +797,8 @@ else:
 # It is entirely empty right now, but the space needs to be allocated
 missing = np.zeros(len(z))-999.
 in_tropoe = {'secs':0, 'height':z, 'pblh':-1., 'lwp':-999., 
-             'temperature':missing, 'waterVapor':missing, 'sigma_temperature':np.abs(missing), 'sigma_waterVapor':np.abs(missing)}
+             'temperature':missing, 'waterVapor':missing, 'sigma_temperature':np.abs(missing), 'sigma_waterVapor':np.abs(missing),
+             'co2_FT':-999., 'sigma_co2_FT':-999., 'co2_BL':-999., 'sigma_co2_BL':-999.}
 if((vip['add_tropoe_T_input_flag'] == 1) | (vip['add_tropoe_q_input_flag'] == 1)):
     print('  The option to use previous good TROPoe profiles as input is turned on')
 
@@ -884,10 +885,13 @@ for i in range(len(irs['secs'])):                        # { loop_i
     #                8 -- external NWP model water vapor profile (*)
     #                9 -- in-situ surface CO2 obs
     #               10 -- MWR non-zenith data
-    #               11 -- TROPoe T input following Adler et al. AMT
-    #               12 -- TROPoe q input following Adler et al. AMT
+    #               11 -- in_TROPoe T input following Adler et al. AMT
+    #               12 -- in_TROPoe q input following Adler et al. AMT
     #               13 -- CBH RH pseudo obs
-    #               14 ... future obs, such as IASI, CrIS, S-HIS, others...
+    #               14 -- in_TROPoe co2 input
+    #               15 -- in_TROPoe ch4 input (not implemented yet)
+    #               16 -- in_TROPoe n2o input (not implemented yet)
+    #               17 ... future obs, such as IASI, CrIS, S-HIS, others...
     #     (*) Note that the NWP input could come in two ways, but I wanted a way
     #         to bring in lidar and NWP data, while retaining backwards compatibility
 
@@ -1074,6 +1078,16 @@ for i in range(len(irs['secs'])):                        # { loop_i
         Sy = np.append(np.append(Sy,zero,axis=0),np.append(zero.T,nSy,axis=0),axis=1) # DDT-delete
         flagY = np.append(flagY, 13)
         dimY = np.append(dimY, irs['cbh'][i])
+
+    if vip['add_tropoe_co2_input_flag'] == 1:
+        Y = np.append(Y, [in_tropoe['co2_FT'], in_tropoe['co2_BL']])
+        inflated_sigma = Other_functions.inflate_in_tropoe_uncertainty('co2',irs['secs'][i],in_tropoe,z,Sa,vip,verbose=verbose)
+        nSy = np.diag(inflated_sigma**2)
+        zero = np.zeros((len(inflated_sigma),len(sigY)))
+        Sy = np.append(np.append(Sy,zero,axis=0),np.append(zero.T,nSy,axis=0),axis=1)
+        sigY = np.append(sigY, inflated_sigma)
+        flagY = np.append(flagY, np.ones(len(inflated_sigma))*14)
+        dimY = np.append(dimY, np.ones(len(inflated_sigma))*(-999))
 
     nY = len(Y)
 
@@ -1867,7 +1881,8 @@ for i in range(len(irs['secs'])):                        # { loop_i
             Kij = np.append(Kij, KK, axis = 0)
             FXn = np.append(FXn,FF)
 
-        # Perform the forward model calculation and compute the Jacobian for the temp "in_tropoe" portion of the observation vector
+        # Perform the forward model calculation and compute the Jacobian for the 
+        #     temp "in_tropoe" portion of the observation vector
         # The forward model is trivial, as the data are on the same height grid
         foo = np.where(flagY == 11)[0]
         if len(foo) > 0:
@@ -1879,7 +1894,8 @@ for i in range(len(irs['secs'])):                        # { loop_i
             Kij = np.append(Kij, KK, axis = 0)
             FXn = np.append(FXn,FF)
 
-        # Perform the forward model calculation and compute the Jacobian for the WVMR "in_tropoe" portion of the observation vector
+        # Perform the forward model calculation and compute the Jacobian for the 
+        #    WVMR "in_tropoe" portion of the observation vector
         # The forward model is trivial, as the data are on the same height grid
         foo = np.where(flagY == 12)[0]
         if len(foo) > 0:
@@ -1912,6 +1928,21 @@ for i in range(len(irs['secs'])):                        # { loop_i
             sigY[cbh_pobs['idx']] = tmp_pobsg
             Sm[cbh_pobs['idx'],cbh_pobs['idx']]    =    (tmp_pobsg)**2  # This is a little dangerous (assumes Sf = 0 for this index)
             SmInv[cbh_pobs['idx'],cbh_pobs['idx']] = (1./tmp_pobsg)**2  # This is a little dangerous (assumes Sf = 0 for this index)
+
+        # Perform the forward model calculation and compute the Jacobian for the 
+        #    co2 "in_tropoe" portion of the observation vector
+        # The forward model is trivial, as the data are on the same 2-layer height grid
+        foo = np.where(flagY == 14)[0]
+        if len(foo) > 0:
+            foo = np.arange(2)+nX+4
+            FF  = Xn[foo]
+            KK  = np.zeros((len(foo),len(Xn)))
+            if in_tropoe['co2_FT'] > 0:
+                KK[0,foo[0]] = 1
+            if in_tropoe['co2_BL'] > 0:
+                KK[1,foo[1]] = 1
+            Kij = np.append(Kij, KK, axis = 0)
+            FXn = np.append(FXn,FF)
 
 
         ########
@@ -2419,12 +2450,14 @@ for i in range(len(irs['secs'])):                        # { loop_i
         if((vip['add_tropoe_T_input_flag'] == 1) | (vip['add_tropoe_q_input_flag'] == 1)):
             if verbose >= 1:
                 print('    Adding retrieved profile to the "in_tropoe" structure, to be used as input later')
-            sig_ret   = np.zeros(nX)
-            for ii in range(nX):
+            sig_ret   = np.zeros(len(Xn))
+            for ii in range(len(Xn)):
                 sig_ret[ii] = np.sqrt(Sop[ii,ii])
-            in_tropoe = {'secs':irs['secs'][i], 'height':z, 'pblh':pblh, 'lwp':Xn[nX], 
-                           'temperature':np.copy(Xn[0:int(nX/2)]), 'waterVapor':np.copy(Xn[int(nX/2):nX]), 
-                           'sigma_temperature':np.copy(sig_ret[0:int(nX/2)]), 'sigma_waterVapor':np.copy(sig_ret[int(nX/2):nX])}
+            in_tropoe = {'secs':irs['secs'][i], 'height':z, 'pblh':pblh, 'lwp':Xn[nX],
+                           'temperature':np.copy(Xn[0:int(nX/2)]), 'waterVapor':np.copy(Xn[int(nX/2):nX]),
+                           'sigma_temperature':np.copy(sig_ret[0:int(nX/2)]), 'sigma_waterVapor':np.copy(sig_ret[int(nX/2):nX]),
+                           'co2_FT':np.copy(Xn[nX+4]), 'sigma_co2_FT':np.copy(sig_ret[nX+4]),
+                           'co2_BL':np.copy(Xn[nX+5]), 'sigma_co2_BL':np.copy(sig_ret[nX+5])}
 
     # Note that I will also save all of the iterations for the
     # last time sample that was processed (i.e., "xsamp")
