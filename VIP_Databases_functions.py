@@ -89,7 +89,7 @@ full_tropoe_vip = ({
     'irs_old_ffov_halfangle': {'value': 23.0, 'comment': 'Original Half angle [millirad] of the finite field of view of the instrument', 'default': False},
     'irs_new_ffov_halfangle': {'value': 0.0, 'comment': 'New half angle [millirad] of the finite field of view of the instrument (values} <= 0 will result in no correction being applied)', 'default': False},
     'irs_min_675_bt': {'value': 233., 'comment': 'Minimum brightness temp [K] in the 675-680 cm-1 window -- this is QC screen', 'default': True},
-    'irs_max_675_bt': {'value': 313., 'comment': 'Maximum brightness temp [K] in the 675-680 cm-1 window -- this is QC screen\n', 'default': True},
+    'irs_max_675_bt': {'value': 343., 'comment': 'Maximum brightness temp [K] in the 675-680 cm-1 window -- this is QC screen\n', 'default': True},
     'irs_spec_cal_factor_ch1': {'value': 1.0, 'comment': 'The multiplicative stretch factor to change the spectral calibration of IRS ch1 data', 'default': False},
     'irs_spec_cal_factor_ch2': {'value': 1.0, 'comment': 'The multiplicative stretch factor to change the spectral calibration of IRS ch2 data', 'default': False},
     'irs_mlev_cbh_wnum_range': {'value': [790.,810], 'comment':'The wavenumber range [cm-1] that should be used for the MLEV CBH calculation', 'default':False},
