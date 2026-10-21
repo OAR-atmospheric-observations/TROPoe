@@ -430,8 +430,8 @@ else:
     if flag == 1:
         print('Error reading in the SSP DB '+vip['icloud_ssp'])
         sys.exit()
-    min_iReff = sspl['data'][2,1]
-    max_iReff = sspl['data'][2,-2]
+    min_iReff = sspi['data'][2,1]
+    max_iReff = sspi['data'][2,-2]
     print('  The minimum and maximum effective radii in the SSP for ' \
     'icloud is {:7.2f} and {:7.2f} microns'.format(min_iReff, max_iReff))
     min_iwnum = sspi['data'][1,1]
@@ -767,7 +767,8 @@ for samp in range(foo[0],len(irs['secs']),step):
         flag, FXn, Kij = Jacobian_Functions.mixcra_forward_model(Xn, tropoe['height'],
                         lblout[tidx], lwc, vip, jday[samp], isza,
                         sfc_emissivity,d_ref_wnum, nyobs1, microwin_file1,
-                        vip['retrieve_lcloud'], vip['retrieve_icloud'], verbose)
+                        vip['retrieve_lcloud'], vip['retrieve_icloud'],
+                        min_lReff, max_lReff, min_iReff, max_iReff, verbose)
         
         if flag == 0:
             print('Error: problem with the forward model -- aborting')
@@ -1007,7 +1008,7 @@ for samp in range(foo[0],len(irs['secs']),step):
         flag, full_FXn, full_Kij = Jacobian_Functions.mixcra_forward_model(Xn, tropoe['height'],
                                         lblout[tidx], lwc, vip, jday[samp], isza,
                                         sfc_emissivity,d_ref_wnum, nyobs2, microwin_file2,
-                                        0, 0, verbose)
+                                        0, 0, min_lReff, max_lReff, min_iReff, max_iReff, verbose)
         
         if flag == 0:
             full_FXn = np.ones(nyobs2)*-999.

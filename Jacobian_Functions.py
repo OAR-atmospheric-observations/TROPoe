@@ -2318,7 +2318,8 @@ def make_lblrtm_calc(vip, ymd, hour, co2, z, p, t, w, pwv, wnum1, wnum2, delt, v
 ############################################################################################
 
 def mixcra_forward_model(Xn, z, lblout, lwc, vip, jday, sza, sfc_emissivity, ref_wnum,
-                         nobs, microwin_file, retrieve_lcloud, retrieve_icloud, verbose):
+                         nobs, microwin_file, retrieve_lcloud, retrieve_icloud,
+                         min_lreff, max_lreff, min_ireff, max_ireff, verbose):
 
     ifile = vip['workdir'] + '/lbldis.parameters'
     ofile = vip['workdir'] + '/lbldis.output'
@@ -2371,6 +2372,8 @@ def mixcra_forward_model(Xn, z, lblout, lwc, vip, jday, sza, sfc_emissivity, ref
                 # Catch cases where the process launched, but LBLDIS exited with an error
             if process.returncode != 0:
                 print(f"LBLDIS execution (3) failed with exit code {process.returncode}")
+                if(verbose > 2):
+                    print(f"Stdout output: {stdout.decode('utf-8', errors='replace')}")
                 print(f"Stderr output: {stderr.decode('utf-8', errors='replace')}")
                 return err, -999, -999
         # Catches failures occurring during process creation
@@ -2431,6 +2434,8 @@ def mixcra_forward_model(Xn, z, lblout, lwc, vip, jday, sza, sfc_emissivity, ref
                     # Catch cases where the process launched, but LBLDIS exited with an error
                 if process.returncode != 0:
                     print(f"LBLDIS execution (4) failed with exit code {process.returncode}")
+                    if(verbose > 2):
+                        print(f"Stdout output: {stdout.decode('utf-8', errors='replace')}")
                     print(f"Stderr output: {stderr.decode('utf-8', errors='replace')}")
                     return err, -999, -999
             # Catches failures occurring during process creation
@@ -2459,7 +2464,11 @@ def mixcra_forward_model(Xn, z, lblout, lwc, vip, jday, sza, sfc_emissivity, ref
         #      but only if the liquid OD is greater than zero
         if Xn[0] > 0:
             pXn = np.copy(pXn)            # Note this line was not in the IDL code but I added it because I think it was a bug
-            pXn[1] += plRe 
+#            pXn[1] += plRe
+            if(pXn[1] + plRe >= max_lreff):
+                pXn[1] -= plRe
+            else:
+                pXn[1] += plRe
 
             LBLRTM_Functions.write_lbldis_parmfile(ifile, sza, microwin_file, z, cldlay, pXn,
                                            ltau, itau, vip, lblout, sfc_emissivity, ref_wnum)
@@ -2472,6 +2481,8 @@ def mixcra_forward_model(Xn, z, lblout, lwc, vip, jday, sza, sfc_emissivity, ref
                         # Catch cases where the process launched, but LBLDIS exited with an error
                     if process.returncode != 0:
                         print(f"LBLDIS execution (5) failed with exit code {process.returncode}")
+                        if(verbose > 2):
+                            print(f"Stdout output: {stdout.decode('utf-8', errors='replace')}")
                         print(f"Stderr output: {stderr.decode('utf-8', errors='replace')}")
                         return err, -999, -999
                 # Catches failures occurring during process creation
@@ -2521,6 +2532,8 @@ def mixcra_forward_model(Xn, z, lblout, lwc, vip, jday, sza, sfc_emissivity, ref
                     # Catch cases where the process launched, but LBLDIS exited with an error
                 if process.returncode != 0:
                     print(f"LBLDIS execution (6) failed with exit code {process.returncode}")
+                    if(verbose > 2):
+                        print(f"Stdout output: {stdout.decode('utf-8', errors='replace')}")
                     print(f"Stderr output: {stderr.decode('utf-8', errors='replace')}")
                     return err, -999, -999
             # Catches failures occurring during process creation
@@ -2549,7 +2562,11 @@ def mixcra_forward_model(Xn, z, lblout, lwc, vip, jday, sza, sfc_emissivity, ref
         #      but only if the liquid OD is greater than zero
         if Xn[2] > 0:
             pXn = np.copy(Xn)
-            pXn[3] += piRe
+#            pXn[3] += piRe
+            if(pXn[3] + piRe >= max_ireff):
+                pXn[3] -= piRe
+            else:
+                pXn[3] += piRe
 
             LBLRTM_Functions.write_lbldis_parmfile(ifile, sza, microwin_file, z, cldlay, pXn,
                                            ltau, itau, vip, lblout, sfc_emissivity, ref_wnum)
@@ -2562,6 +2579,8 @@ def mixcra_forward_model(Xn, z, lblout, lwc, vip, jday, sza, sfc_emissivity, ref
                         # Catch cases where the process launched, but LBLDIS exited with an error
                     if process.returncode != 0:
                         print(f"LBLDIS execution (7) failed with exit code {process.returncode}")
+                        if(verbose > 2):
+                            print(f"Stdout output: {stdout.decode('utf-8', errors='replace')}")
                         print(f"Stderr output: {stderr.decode('utf-8', errors='replace')}")
                         return err, -999, -999
                 # Catches failures occurring during process creation
