@@ -349,7 +349,7 @@ full_mixcra_vip = ({
     'irs_band_noise_sfc_multiplier': {'value': '20.0,20,1,1', 'comment': 'A comma separated list of multipliers [unitless] for the y-axis', 'default': False}, 
     'irs_zenith_scene_mirror_angle': {'value':180, 'comment': 'The angle [degrees] of the IRS scene mirror that corresponds to zenith', 'default':True},
     'irs_min_675_bt': {'value': 233., 'comment': 'Minimum brightness temp [K] in the 675-680 cm-1 window -- this is QC screen', 'default': True},
-    'irs_max_675_bt': {'value': 313., 'comment': 'Maximum brightness temp [K] in the 675-680 cm-1 window -- this is QC screen\n', 'default': True},
+    'irs_max_675_bt': {'value': 343., 'comment': 'Maximum brightness temp [K] in the 675-680 cm-1 window -- this is QC screen\n', 'default': True},
     'irs_use_missingDataFlag': {'value': 1, 'comment': 'Set this to 1 to use the field \'missingDataFlag\' (from the ch1 file) to remove bad IRS data from analysis. If zero, then all IRS data will be processed,', 'default': False},
     'irs_calib_pres': {'value': [0.0, 1.0], 'comment': 'Intercept [mb] and slope [mb/mb to calib (newP = int = slope*obsP) (need comma between them)', 'default': False},
     'irs_use_missingDataFlag': {'value': 1, 'comment': 'Set this to 1 to use the field \'missingDataFlag\' (from the ch1 file) to remove bad IRS data from analysis. If zero, then all IRS data will be processed,', 'default': False},
