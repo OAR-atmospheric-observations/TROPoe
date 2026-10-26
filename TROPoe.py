@@ -2203,10 +2203,15 @@ for i in range(len(irs['secs'])):                        # { loop_i
         # difference (normalizing by the observation error here), because I
         # am mixing units from all of the different types of observation
         # But I will also compute the chi-square value of the obs vs. F(Xn)
+        # I will only use valid observations and forward calculation
 
         chi2 = np.sqrt(np.sum(((Y - FXn)/ Y)**2) / float(nY))
-        rmsa = np.sqrt(np.sum(((Y - FXn)/sigY)**2) / float(nY))
-        feh = np.where((flagY == 1) | (flagY == 2) & (Y > -900))[0]
+        feh = np.where((Y > -900) & (FXn > -770))[0]
+        if len(feh) > 0:
+            rmsa = np.sqrt(np.sum(((Y[feh] - FXn[feh])/sigY[feh])**2) / float(len(feh)))
+        else:
+            rmsa = -999.
+        feh = np.where(((flagY == 1) | (flagY == 2)) & (Y > -900) & (FXn > -770))[0]
         if len(feh) > 0:
             rmsr = np.sqrt(np.sum(((Y[feh] - FXn[feh])/sigY[feh])**2) / float(len(feh)))
         else:
