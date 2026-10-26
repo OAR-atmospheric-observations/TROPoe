@@ -920,6 +920,9 @@ for samp in range(foo[0],len(irs['secs']),step):
         Xn[1] = np.min([np.max([Xn[1],min_lReff]),max_lReff])
         Xn[2] = np.max([Xn[2],vip['min_itau']*d_iQext_ratio])
         Xn[3] = np.min([np.max([Xn[3],min_iReff]),max_iReff])
+
+        # And flush the stdOut buffer (needed for singularity-based apps)
+        sys.stdout.flush()
         
     # If retrieval converged we will store that result. If not, then we
     # will store the iteration that had the smallest RMS relative to the observations

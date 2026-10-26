@@ -2437,6 +2437,9 @@ for i in range(len(irs['secs'])):                        # { loop_i
         xsamp.append(xtmp)
         print('    Converged! (best RMS after max_iter)')   # } end of while loop over iter
 
+        # And flush the stdOut buffer (needed for singularity-based apps)
+        sys.stdout.flush()
+
     # Store the data, regardless whether it converges or not
     if xret == []:
         xret = [copy.deepcopy(xsamp[len(xsamp)-1])]
