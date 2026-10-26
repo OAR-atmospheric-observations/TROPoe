@@ -374,10 +374,13 @@ for i in range(len(lhour)):
         lblout = [np.copy(lbl['filename'])]
     else:
         lblout.append(np.copy(lbl['filename']))
+
+    sys.stdout.flush()   # And flush the buffer
     
 if len(lhour) == 1:
     lhour = [lhour[0]-0.5,lhour[0]+0.5]
     lblout = [lblout[0],lblout[0]]
+    sys.stdout.flush()   # And flush the buffer
 
 # Create the microwindow file used by LBLDIS in this working directory
     # For the retrieval spectral bands
