@@ -279,21 +279,20 @@ def rundecker(model, aprofile, z, p, t, w, co2_profile= None, o3_profile=None,
         inst = sc
         
     # Handle the continuum options and scale factors
-    # TODO -- make sure that the "cntnm" variable is consistent with the IDL code (may be ok, maybe not)
     cntnm_default = 1
     reset_cntnm = False
     if cntnm is None:
         cntnm = cntnm_default
     if type(cntnm) is np.ndarray:
-            if len(cntnm) != 7:
-                reset_cntnm = True
-            else:
+        if len(cntnm) != 7:
+            reset_cntnm = True
+        else:
                 #Now check to make sure cntnm isn't set to negative numbers
-                foo = np.where(cntnm < 0)[0]
-                if len(foo) > 0:
-                    cntnm[foo] = 0
-                cntnm_array = np.copy(cntnm)          # The array of coninuum scale factors
-                cntnm = 6                     # The flag indicating scale factors will be used
+            foo = np.where(cntnm < 0)[0]
+            if len(foo) > 0:
+                cntnm[foo] = 0
+            cntnm_array = np.copy(cntnm)          # The array of coninuum scale factors
+            cntnm = 6                     # The flag indicating scale factors will be used
     elif type(cntnm) is int:
         if ((cntnm < 0)  | (cntnm > 5)):
             reset_cntnm = True
