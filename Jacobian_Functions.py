@@ -118,6 +118,9 @@ def compute_jacobian_irs_interpol(X, p, zz, lblhome, lbldir, lblroot, lbl_std_at
         mlayerz = sfcz + zz
         mlayert = t
 
+    # Define the continuum absorption for the various gases to be set to default values
+    cntnm = np.ones(7)
+
     # Make the baseline run
     if verbose >= 3:
         print('Making the LBLRTM runs for the Jacobian')
@@ -125,7 +128,7 @@ def compute_jacobian_irs_interpol(X, p, zz, lblhome, lbldir, lblroot, lbl_std_at
     LBLRTM_Functions.rundecker(3, lbl_std_atmos, zz+sfcz, p, t, w,
              co2_profile=co2prof, ch4_profile=ch4prof, n2o_profile=n2oprof,
              od_only=1, mlayers=mlayerz, wnum1=lblwnum1, wnum2=lblwnum2, tape5=tp5+'.1',
-             v10=True, silent=True)
+             v10=True, silent=True, cntnm=cntnm)
 
     command1 = ('setenv LBL_HOME ' +lblhome + ' ; '+
                     'rm -rf ' + lblroot + '.1 ; '+
@@ -142,7 +145,7 @@ def compute_jacobian_irs_interpol(X, p, zz, lblhome, lbldir, lblroot, lbl_std_at
         LBLRTM_Functions.rundecker(3, lbl_std_atmos, zz+sfcz, p, t+tpert, w,
              co2_profile=co2prof, ch4_profile=ch4prof, n2o_profile=n2oprof,
              od_only=1, mlayers=mlayerz, wnum1=lblwnum1, wnum2=lblwnum2, tape5=tp5+'.2',
-             v10=True, silent=True)
+             v10=True, silent=True, cntnm=cntnm)
 
         command2 = ('setenv LBL_HOME ' +lblhome + ' ; '+
                     'rm -rf ' + lblroot + '.2 ; '+
@@ -163,7 +166,7 @@ def compute_jacobian_irs_interpol(X, p, zz, lblhome, lbldir, lblroot, lbl_std_at
         LBLRTM_Functions.rundecker(3, lbl_std_atmos, zz+sfcz, p, t, w*h2opert,
              co2_profile=co2prof, ch4_profile=ch4prof, n2o_profile=n2oprof,
              od_only=1, mlayers=mlayerz, wnum1=lblwnum1, wnum2=lblwnum2, tape5=tp5+'.3',
-             v10=True, silent=True)
+             v10=True, silent=True, cntnm=cntnm)
 
         command3 = ('setenv LBL_HOME ' +lblhome + ' ; '+
                     'rm -rf ' + lblroot + '.3 ; '+
@@ -185,7 +188,7 @@ def compute_jacobian_irs_interpol(X, p, zz, lblhome, lbldir, lblroot, lbl_std_at
         LBLRTM_Functions.rundecker(3, lbl_std_atmos, zz+sfcz, p, t, w,
              co2_profile=co2prof2, ch4_profile=ch4prof, n2o_profile=n2oprof,
              od_only=1, mlayers=mlayerz, wnum1=lblwnum1, wnum2=lblwnum2, tape5=tp5+'.4',
-             v10=True, silent=True)
+             v10=True, silent=True, cntnm=cntnm)
 
         command4 = ('setenv LBL_HOME ' +lblhome + ' ; '+
                     'rm -rf ' + lblroot + '.4 ; '+
@@ -207,7 +210,7 @@ def compute_jacobian_irs_interpol(X, p, zz, lblhome, lbldir, lblroot, lbl_std_at
         LBLRTM_Functions.rundecker(3, lbl_std_atmos, zz+sfcz, p, t, w,
              co2_profile=co2prof, ch4_profile=ch4prof2, n2o_profile=n2oprof,
              od_only = 1, mlayers=mlayerz, wnum1=lblwnum1, wnum2=lblwnum2, tape5=tp5+'.5',
-             v10=True, silent=True)
+             v10=True, silent=True, cntnm=cntnm)
 
         command5 = ('setenv LBL_HOME ' +lblhome + ' ; '+
                     'rm -rf ' + lblroot + '.5 ; '+
@@ -229,7 +232,7 @@ def compute_jacobian_irs_interpol(X, p, zz, lblhome, lbldir, lblroot, lbl_std_at
         LBLRTM_Functions.rundecker(3, lbl_std_atmos, zz+sfcz, p, t, w,
              co2_profile=co2prof, ch4_profile=ch4prof, n2o_profile=n2oprof2,
              od_only=1, mlayers=mlayerz, wnum1=lblwnum1, wnum2=lblwnum2, tape5=tp5+'.6',
-             v10=True, silent=True)
+             v10=True, silent=True, cntnm=cntnm)
 
         command6 = ('setenv LBL_HOME ' +lblhome + ' ; '+
                     'rm -rf ' + lblroot + '.6 ; '+
@@ -2238,6 +2241,9 @@ def make_lblrtm_calc(vip, ymd, hour, co2, z, p, t, w, pwv, wnum1, wnum2, delt, v
     else:
         quiet=1
     
+    # Define the continuum absorption for the various gases to be set to default values
+    cntnm = np.ones(7)
+
     # Get the name for the output files
     hhmm = int(hour)*100 + int((hour-int(hour))*60)
 
@@ -2268,7 +2274,7 @@ def make_lblrtm_calc(vip, ymd, hour, co2, z, p, t, w, pwv, wnum1, wnum2, delt, v
         # Make the tape5 file and run the model
         LBLRTM_Functions.rundecker(3, vip['lbl_std_atmos'], z, p, t+273.16, w,
              od_only=1, mlayers=z, wnum1=wnum1, wnum2=wnum2, tape5=tp5, co2_sfactor=np.array([co2,1]),
-             v10=True, silent=True)
+             v10=True, silent=True, cntnm=cntnm)
         
         command = ('setenv LBL_RUN_ROOT ' + vip['workdir'] + ' ; '+
                     'setenv LBL_HOME ' + vip['lblrtm_home'] + ' ; '+
